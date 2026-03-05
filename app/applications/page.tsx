@@ -23,6 +23,7 @@ const emptyForm = {
   cvDocumentVersionId: "",
   coverDocumentVersionId: "",
   salary_expectation: "",
+  status: "Saved" as ApplicationStatus,
 };
 
 export default function ApplicationsPage() {
@@ -136,6 +137,7 @@ export default function ApplicationsPage() {
       cvDocumentVersionId: application.cvDocumentVersionId ?? "",
       coverDocumentVersionId: application.coverDocumentVersionId ?? "",
       salary_expectation: application.salary_expectation ?? "",
+      status: application.status,
     });
 
     await loadSnapshot(application.id);
@@ -151,6 +153,7 @@ export default function ApplicationsPage() {
       location: form.location,
       job_url: form.job_url,
       salary_expectation: form.salary_expectation || "",
+      status: form.status,
       applied_date: form.applied_date || "",
       notes: form.notes || "",
       jobDescription: {
@@ -230,7 +233,7 @@ export default function ApplicationsPage() {
         </Link>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-3 rounded border border-zinc-200 p-4">
+      <form onSubmit={onSubmit} className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <h2 className="text-xl font-medium">{editingId ? "Edit" : "Create"} application</h2>
         <div className="grid gap-2 md:grid-cols-2">
           <input
@@ -281,6 +284,17 @@ export default function ApplicationsPage() {
             value={form.applied_date}
             onChange={(e) => setForm((f) => ({ ...f, applied_date: e.target.value }))}
           />
+          <select
+            className="rounded border p-2"
+            value={form.status}
+            onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as ApplicationStatus }))}
+          >
+            {statuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
           <input
             placeholder="Salary expectation"
             className="rounded border p-2"
@@ -370,7 +384,7 @@ export default function ApplicationsPage() {
 
       {error && <p className="rounded border border-red-300 bg-red-50 p-3 text-red-700">{error}</p>}
 
-      <section className="rounded border border-zinc-200 p-4">
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-xl font-medium">List view</h2>
           <p className="text-sm text-zinc-500">Click headers to sort</p>
@@ -473,7 +487,7 @@ export default function ApplicationsPage() {
         )}
       </section>
 
-      <section>
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <h2 className="mb-2 text-xl font-medium">Kanban by status</h2>
         <div className="grid gap-3 md:grid-cols-5">
           {statuses.map((status) => (

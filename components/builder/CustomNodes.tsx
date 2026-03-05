@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import { Handle, Position, NodeProps } from "@xyflow/react";
-import { Bot, Play, Zap, Settings } from "lucide-react";
+import { Bot, Play, Zap } from "lucide-react";
 
 const NodeWrapper = ({ children, selected, title, icon: Icon, colorClass }: any) => (
   <div
@@ -81,3 +81,8 @@ export const ActionNode = memo(({ data, selected }: NodeProps) => {
     </NodeWrapper>
   );
 });
+
+
+AgentNode.displayName = "AgentNode";
+TriggerNode.displayName = "TriggerNode";
+ActionNode.displayName = "ActionNode";
