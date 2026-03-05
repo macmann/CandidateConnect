@@ -66,6 +66,8 @@ export default function ApplicationDetailPage() {
 
   const [personName, setPersonName] = useState("");
   const [personTitle, setPersonTitle] = useState("");
+  const [personDepartment, setPersonDepartment] = useState("");
+  const [personLinkedinUrl, setPersonLinkedinUrl] = useState("");
   const [personNotes, setPersonNotes] = useState("");
 
   const [prepTone, setPrepTone] = useState<"concise" | "detailed">("concise");
@@ -168,11 +170,19 @@ export default function ApplicationDetailPage() {
     const response = await fetch(`/api/applications/${id}/interviewers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: personName || "Unknown interviewer", title: personTitle, notes: personNotes }),
+      body: JSON.stringify({
+        name: personName || "Unknown interviewer",
+        title: personTitle,
+        department: personDepartment,
+        linkedin_url: personLinkedinUrl,
+        notes: personNotes,
+      }),
     });
     if (!response.ok) return;
     setPersonName("");
     setPersonTitle("");
+    setPersonDepartment("");
+    setPersonLinkedinUrl("");
     setPersonNotes("");
     await load();
   }
@@ -456,6 +466,8 @@ export default function ApplicationDetailPage() {
         <form onSubmit={createInterviewer} className="grid gap-2 md:grid-cols-3">
           <input className="rounded border p-2" placeholder="Name (or Unknown interviewer)" value={personName} onChange={(e) => setPersonName(e.target.value)} />
           <input className="rounded border p-2" placeholder="Title / role" value={personTitle} onChange={(e) => setPersonTitle(e.target.value)} />
+          <input className="rounded border p-2" placeholder="Department (optional)" value={personDepartment} onChange={(e) => setPersonDepartment(e.target.value)} />
+          <input className="rounded border p-2" placeholder="LinkedIn URL" value={personLinkedinUrl} onChange={(e) => setPersonLinkedinUrl(e.target.value)} />
           <input className="rounded border p-2" placeholder="Notes / vibe / what to ask" value={personNotes} onChange={(e) => setPersonNotes(e.target.value)} />
           <button className="rounded bg-black px-3 py-2 text-white md:col-span-3">Add interviewer</button>
         </form>
