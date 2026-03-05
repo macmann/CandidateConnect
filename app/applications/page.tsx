@@ -5,22 +5,24 @@ import Link from "next/link";
 import { Application, ApplicationStatus, DocumentVersion } from "@/lib/domain/application";
 import { JobDescriptionSnapshot } from "@/lib/domain/jobDescriptionSnapshot";
 
-type SortKey = "candidateName" | "company" | "status" | "updatedAt";
+type SortKey = "candidateName" | "company" | "status" | "updated_at";
 
 const statuses: ApplicationStatus[] = ["Saved", "Applied", "Interview", "Offer", "Rejected"];
 
 const emptyForm = {
   candidateName: "",
   candidateEmail: "",
-  title: "",
+  role: "",
   company: "",
   location: "",
+  job_url: "",
+  applied_date: "",
+  notes: "",
   description: "",
-  sourceUrl: "",
   jdRawText: "",
   cvDocumentVersionId: "",
   coverDocumentVersionId: "",
-  salaryExpectation: "",
+  salary_expectation: "",
 };
 
 export default function ApplicationsPage() {
@@ -32,7 +34,7 @@ export default function ApplicationsPage() {
   const [currentSnapshot, setCurrentSnapshot] = useState<JobDescriptionSnapshot | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [sortKey, setSortKey] = useState<SortKey>("updatedAt");
+  const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [sortAscending, setSortAscending] = useState(false);
 
   async function loadApplications() {
@@ -91,17 +93,9 @@ export default function ApplicationsPage() {
   const sorted = useMemo(() => {
     return [...applications].sort((a, b) => {
       const left =
-        sortKey === "company"
-          ? a.jobDescription.company
-          : sortKey === "updatedAt"
-            ? a.updatedAt
-            : a[sortKey];
+        sortKey === "company" ? a.company : sortKey === "updated_at" ? a.updated_at : a[sortKey];
       const right =
-        sortKey === "company"
-          ? b.jobDescription.company
-          : sortKey === "updatedAt"
-            ? b.updatedAt
-            : b[sortKey];
+        sortKey === "company" ? b.company : sortKey === "updated_at" ? b.updated_at : b[sortKey];
       const value = String(left).localeCompare(String(right));
       return sortAscending ? value : -value;
     });
@@ -131,15 +125,17 @@ export default function ApplicationsPage() {
     setForm({
       candidateName: application.candidateName,
       candidateEmail: application.candidateEmail,
-      title: application.jobDescription.title,
-      company: application.jobDescription.company,
-      location: application.jobDescription.location ?? "",
+      role: application.role,
+      company: application.company,
+      location: application.location ?? "",
+      job_url: application.job_url ?? "",
+      applied_date: application.applied_date ? application.applied_date.slice(0, 10) : "",
+      notes: application.notes ?? "",
       description: application.jobDescription.description,
-      sourceUrl: application.jobDescription.sourceUrl ?? "",
       jdRawText: "",
       cvDocumentVersionId: application.cvDocumentVersionId ?? "",
       coverDocumentVersionId: application.coverDocumentVersionId ?? "",
-      salaryExpectation: application.salaryExpectation ?? "",
+      salary_expectation: application.salary_expectation ?? "",
     });
 
     await loadSnapshot(application.id);
@@ -150,16 +146,22 @@ export default function ApplicationsPage() {
     const payload = {
       candidateName: form.candidateName,
       candidateEmail: form.candidateEmail,
+      company: form.company,
+      role: form.role,
+      location: form.location,
+      job_url: form.job_url,
+      salary_expectation: form.salary_expectation || "",
+      applied_date: form.applied_date || "",
+      notes: form.notes || "",
       jobDescription: {
-        title: form.title,
+        title: form.role,
         company: form.company,
         location: form.location,
         description: form.description,
-        sourceUrl: form.sourceUrl,
+        sourceUrl: form.job_url,
       },
       cvDocumentVersionId: form.cvDocumentVersionId || undefined,
       coverDocumentVersionId: form.coverDocumentVersionId || undefined,
-      salaryExpectation: form.salaryExpectation || undefined,
     };
 
     const response = await fetch(
@@ -248,10 +250,10 @@ export default function ApplicationsPage() {
           />
           <input
             required
-            placeholder="Role title"
+            placeholder="Role"
             className="rounded border p-2"
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+            value={form.role}
+            onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
           />
           <input
             required
@@ -267,10 +269,23 @@ export default function ApplicationsPage() {
             onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
           />
           <input
-            placeholder="Source URL"
+            type="url"
+            placeholder="Job URL"
             className="rounded border p-2"
-            value={form.sourceUrl}
-            onChange={(e) => setForm((f) => ({ ...f, sourceUrl: e.target.value }))}
+            value={form.job_url}
+            onChange={(e) => setForm((f) => ({ ...f, job_url: e.target.value }))}
+          />
+          <input
+            type="date"
+            className="rounded border p-2"
+            value={form.applied_date}
+            onChange={(e) => setForm((f) => ({ ...f, applied_date: e.target.value }))}
+          />
+          <input
+            placeholder="Salary expectation"
+            className="rounded border p-2"
+            value={form.salary_expectation}
+            onChange={(e) => setForm((f) => ({ ...f, salary_expectation: e.target.value }))}
           />
           <select
             className="rounded border p-2"
@@ -297,11 +312,12 @@ export default function ApplicationsPage() {
             ))}
           </select>
         </div>
-        <input
-          placeholder="Salary expectation"
-          className="rounded border p-2 md:col-span-2"
-          value={form.salaryExpectation}
-          onChange={(e) => setForm((f) => ({ ...f, salaryExpectation: e.target.value }))}
+
+        <textarea
+          placeholder="Notes"
+          className="min-h-20 rounded border p-2"
+          value={form.notes}
+          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
         />
         <textarea
           required
@@ -370,7 +386,7 @@ export default function ApplicationsPage() {
                     ["candidateName", "Candidate"],
                     ["company", "Company"],
                     ["status", "Status"],
-                    ["updatedAt", "Updated"],
+                    ["updated_at", "Updated"],
                   ].map(([key, label]) => (
                     <th
                       key={key}
@@ -387,6 +403,7 @@ export default function ApplicationsPage() {
                       {label}
                     </th>
                   ))}
+                  <th className="border-b px-2 py-2">Details</th>
                   <th className="border-b px-2 py-2">Documents</th>
                   <th className="border-b px-2 py-2">Actions</th>
                 </tr>
@@ -395,10 +412,28 @@ export default function ApplicationsPage() {
                 {sorted.map((application) => (
                   <tr key={application.id} className="border-b">
                     <td className="px-2 py-2">{application.candidateName}</td>
-                    <td className="px-2 py-2">{application.jobDescription.company}</td>
-                    <td className="px-2 py-2">{application.status}{application.submissionSnapshot ? " (Submitted)" : ""}</td>
+                    <td className="px-2 py-2">{application.company}</td>
                     <td className="px-2 py-2">
-                      {new Date(application.updatedAt).toLocaleString()}
+                      {application.status}
+                      {application.submissionSnapshot ? " (Submitted)" : ""}
+                    </td>
+                    <td className="px-2 py-2">
+                      {new Date(application.updated_at).toLocaleString()}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-zinc-600">
+                      {application.role}
+                      <br />
+                      {application.job_url ? (
+                        <a href={application.job_url} className="text-blue-600 underline">
+                          Job link
+                        </a>
+                      ) : (
+                        "No job URL"
+                      )}
+                      <br />
+                      Applied: {application.applied_date || "—"}
+                      <br />
+                      Notes: {application.notes || "—"}
                     </td>
                     <td className="px-2 py-2 text-xs text-zinc-600">
                       CV: {application.cvDocumentVersionId ? "Linked" : "—"}
@@ -414,11 +449,17 @@ export default function ApplicationsPage() {
                         >
                           Edit
                         </button>
-                        <Link href={`/applications/${application.id}`} className="rounded border px-3 py-1">
+                        <Link
+                          href={`/applications/${application.id}`}
+                          className="rounded border px-3 py-1"
+                        >
                           Answers
                         </Link>
                         {application.submissionSnapshot && (
-                          <Link href={`/applications/${application.id}/pack`} className="rounded border px-3 py-1">
+                          <Link
+                            href={`/applications/${application.id}/pack`}
+                            className="rounded border px-3 py-1"
+                          >
                             Pack
                           </Link>
                         )}
@@ -457,8 +498,12 @@ export default function ApplicationsPage() {
                     className="cursor-grab rounded border bg-white p-2 text-sm"
                   >
                     <p className="font-medium">{application.candidateName}</p>
-                    <p className="text-zinc-600">{application.jobDescription.title}</p>
-                    <p className="text-zinc-500">{application.jobDescription.company}</p>
+                    <p className="text-zinc-600">{application.role}</p>
+                    <p className="text-zinc-500">{application.company}</p>
+                    <p className="text-zinc-500">{application.applied_date || "Not applied"}</p>
+                    {application.notes && (
+                      <p className="line-clamp-2 text-zinc-500">{application.notes}</p>
+                    )}
                   </div>
                 ))}
               </div>

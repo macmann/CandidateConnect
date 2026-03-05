@@ -10,12 +10,12 @@ function assertCreateInput(input: Partial<ApplicationInput>): asserts input is A
     throw new Error("candidateEmail is required");
   }
 
-  if (!input.jobDescription?.title?.trim()) {
-    throw new Error("jobDescription.title is required");
+  if (!input.company?.trim()) {
+    throw new Error("company is required");
   }
 
-  if (!input.jobDescription?.company?.trim()) {
-    throw new Error("jobDescription.company is required");
+  if (!input.role?.trim()) {
+    throw new Error("role is required");
   }
 
   if (!input.jobDescription?.description?.trim()) {
@@ -30,7 +30,14 @@ function hasFrozenFieldChanges(input: Partial<ApplicationInput>): boolean {
       input.jobDescription !== undefined ||
       input.cvDocumentVersionId !== undefined ||
       input.coverDocumentVersionId !== undefined ||
-      input.salaryExpectation !== undefined,
+      input.salaryExpectation !== undefined ||
+      input.salary_expectation !== undefined ||
+      input.company !== undefined ||
+      input.role !== undefined ||
+      input.location !== undefined ||
+      input.job_url !== undefined ||
+      input.applied_date !== undefined ||
+      input.notes !== undefined,
   );
 }
 

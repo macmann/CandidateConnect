@@ -50,9 +50,20 @@ export interface SubmissionSnapshot {
 
 export interface Application {
   id: string;
+  company: string;
+  role: string;
+  location: string;
+  job_url: string;
+  status: ApplicationStatus;
+  salary_expectation: string;
+  applied_date: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+
+  // Backward compatibility aliases for existing callers.
   candidateName: string;
   candidateEmail: string;
-  status: ApplicationStatus;
   jobDescription: JobDescriptionSnapshot;
   fieldAnswers: FieldAnswer[];
   submissionSnapshot?: SubmissionSnapshot;
@@ -66,7 +77,15 @@ export interface Application {
 export interface ApplicationInput {
   candidateName: string;
   candidateEmail: string;
+  company: string;
+  role: string;
+  location?: string;
+  job_url?: string;
   status?: ApplicationStatus;
+  salary_expectation?: string;
+  applied_date?: string;
+  notes?: string;
+  created_at?: string;
   jobDescription: Omit<JobDescriptionSnapshot, "capturedAt"> & {
     capturedAt?: string;
   };
