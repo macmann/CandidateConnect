@@ -11,6 +11,12 @@ interface DebriefInput {
   followUpTasks: string;
 }
 
+interface TaskListInput {
+  roundId: string;
+  followUpReminderAt?: string;
+  takeHomeItems: Array<{ id: string; text: string; completed: boolean }>;
+}
+
 export class DebriefService {
   async create(input: DebriefInput) {
     const debrief = await prepRepository.saveDebrief({
@@ -35,7 +41,8 @@ export class DebriefService {
         const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GENAI_API_KEY });
         const response = await ai.models.generateContent({
           model: "gemini-1.5-flash",
-          contents: `Create four sections: summary, improvements, next_round_focus, thank_you_email from this debrief data:\n${JSON.stringify(input, null, 2)}`,
+          contents: `Create four sections: summary, improvements, next_round_focus, thank_you_email from this debrief data:
+${JSON.stringify(input, null, 2)}`,
         });
         const text = response.text ?? "";
         if (text.trim()) {
@@ -58,11 +65,21 @@ export class DebriefService {
   }
 
   async list(roundId: string) {
-    const [debriefs, artifacts] = await Promise.all([
+    const [debriefs, artifacts, taskList] = await Promise.all([
       prepRepository.listDebriefs(roundId),
       prepRepository.listDebriefArtifacts(roundId),
+      prepRepository.getTaskList(roundId),
     ]);
-    return { debriefs, artifacts };
+    const latestArtifact = [...artifacts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null;
+    return { debriefs, artifacts, latestArtifact, taskList };
+  }
+
+  async upsertTaskList(input: TaskListInput) {
+    return prepRepository.upsertTaskList({
+      round_id: input.roundId,
+      follow_up_reminder_at: input.followUpReminderAt,
+      take_home_items: input.takeHomeItems,
+    });
   }
 }
 

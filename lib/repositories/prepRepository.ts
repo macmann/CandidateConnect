@@ -1,17 +1,18 @@
 import crypto from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { DebriefArtifact, PrepArtifact, RoundDebrief } from "@/lib/domain/application";
+import { DebriefArtifact, PrepArtifact, RoundDebrief, RoundTaskList, TakeHomeChecklistItem } from "@/lib/domain/application";
 
 interface PrepStore {
   prepArtifacts: PrepArtifact[];
   debriefs: RoundDebrief[];
   debriefArtifacts: DebriefArtifact[];
+  taskLists: RoundTaskList[];
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "prep-artifacts.json");
-const defaultStore: PrepStore = { prepArtifacts: [], debriefs: [], debriefArtifacts: [] };
+const defaultStore: PrepStore = { prepArtifacts: [], debriefs: [], debriefArtifacts: [], taskLists: [] };
 const nowIso = () => new Date().toISOString();
 
 async function ensureStore() {
@@ -31,6 +32,7 @@ async function readStore(): Promise<PrepStore> {
       prepArtifacts: Array.isArray(parsed.prepArtifacts) ? parsed.prepArtifacts : [],
       debriefs: Array.isArray(parsed.debriefs) ? parsed.debriefs : [],
       debriefArtifacts: Array.isArray(parsed.debriefArtifacts) ? parsed.debriefArtifacts : [],
+      taskLists: Array.isArray(parsed.taskLists) ? parsed.taskLists : [],
     };
   } catch {
     return defaultStore;
@@ -94,6 +96,39 @@ export class PrepRepository {
   async listDebriefArtifacts(roundId: string): Promise<DebriefArtifact[]> {
     const store = await readStore();
     return store.debriefArtifacts.filter((d) => d.round_id === roundId);
+  }
+
+  async getTaskList(roundId: string): Promise<RoundTaskList | null> {
+    const store = await readStore();
+    return store.taskLists.find((taskList) => taskList.round_id === roundId) ?? null;
+  }
+
+  async upsertTaskList(input: {
+    round_id: string;
+    follow_up_reminder_at?: string;
+    take_home_items: Array<Pick<TakeHomeChecklistItem, "id" | "text" | "completed">>;
+  }): Promise<RoundTaskList> {
+    const store = await readStore();
+    const existing = store.taskLists.find((taskList) => taskList.round_id === input.round_id);
+    if (existing) {
+      existing.follow_up_reminder_at = input.follow_up_reminder_at;
+      existing.take_home_items = input.take_home_items;
+      existing.updated_at = nowIso();
+      await writeStore(store);
+      return existing;
+    }
+
+    const created: RoundTaskList = {
+      id: crypto.randomUUID(),
+      round_id: input.round_id,
+      follow_up_reminder_at: input.follow_up_reminder_at,
+      take_home_items: input.take_home_items,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    };
+    store.taskLists.push(created);
+    await writeStore(store);
+    return created;
   }
 }
 
