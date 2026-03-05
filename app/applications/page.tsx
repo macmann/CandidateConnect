@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Application, ApplicationStatus } from "@/lib/domain/application";
+import { JobDescriptionSnapshot } from "@/lib/domain/jobDescriptionSnapshot";
 
 type SortKey = "candidateName" | "company" | "status" | "updatedAt";
 
@@ -15,6 +16,7 @@ const emptyForm = {
   location: "",
   description: "",
   sourceUrl: "",
+  jdRawText: "",
 };
 
 export default function ApplicationsPage() {
@@ -22,6 +24,8 @@ export default function ApplicationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [currentSnapshot, setCurrentSnapshot] = useState<JobDescriptionSnapshot | null>(null);
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [sortKey, setSortKey] = useState<SortKey>("updatedAt");
   const [sortAscending, setSortAscending] = useState(false);
@@ -40,6 +44,30 @@ export default function ApplicationsPage() {
     setApplications(data.applications ?? []);
     setError(null);
     setLoading(false);
+  }
+
+  async function loadSnapshot(applicationId: string) {
+    setSnapshotLoading(true);
+    const response = await fetch(`/api/applications/${applicationId}/job-description-snapshot`, {
+      cache: "no-store",
+    });
+
+    if (response.status === 404) {
+      setCurrentSnapshot(null);
+      setSnapshotLoading(false);
+      return;
+    }
+
+    const data = await response.json();
+    if (!response.ok) {
+      setError(data.error ?? "Failed to load JD snapshot");
+      setCurrentSnapshot(null);
+      setSnapshotLoading(false);
+      return;
+    }
+
+    setCurrentSnapshot(data.snapshot ?? null);
+    setSnapshotLoading(false);
   }
 
   useEffect(() => {
@@ -75,7 +103,7 @@ export default function ApplicationsPage() {
     );
   }, [applications]);
 
-  function startEdit(application: Application) {
+  async function startEdit(application: Application) {
     setEditingId(application.id);
     setForm({
       candidateName: application.candidateName,
@@ -85,7 +113,10 @@ export default function ApplicationsPage() {
       location: application.jobDescription.location ?? "",
       description: application.jobDescription.description,
       sourceUrl: application.jobDescription.sourceUrl ?? "",
+      jdRawText: "",
     });
+
+    await loadSnapshot(application.id);
   }
 
   async function onSubmit(event: FormEvent) {
@@ -115,6 +146,26 @@ export default function ApplicationsPage() {
     if (!response.ok) {
       setError(data.error ?? "Failed to save application");
       return;
+    }
+
+    const savedApplication = data.application as Application;
+    if (!currentSnapshot && form.jdRawText.trim()) {
+      const snapshotResponse = await fetch(
+        `/api/applications/${savedApplication.id}/job-description-snapshot`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ raw_text: form.jdRawText }),
+        },
+      );
+
+      const snapshotData = await snapshotResponse.json();
+      if (!snapshotResponse.ok) {
+        setError(snapshotData.error ?? "Failed to save JD snapshot");
+        return;
+      }
+
+      setCurrentSnapshot(snapshotData.snapshot ?? null);
     }
 
     setForm(emptyForm);
@@ -195,6 +246,28 @@ export default function ApplicationsPage() {
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
         />
+
+        {currentSnapshot ? (
+          <div className="rounded border border-zinc-200 bg-zinc-50 p-3">
+            <h3 className="mb-1 font-medium">JD snapshot (read-only)</h3>
+            <p className="mb-2 text-xs text-zinc-500">
+              Captured at {new Date(currentSnapshot.created_at).toLocaleString()}
+            </p>
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-sm">
+              {currentSnapshot.raw_text}
+            </pre>
+          </div>
+        ) : (
+          <textarea
+            placeholder="Paste full job description text for immutable snapshot"
+            className="min-h-36 rounded border p-2"
+            value={form.jdRawText}
+            onChange={(e) => setForm((f) => ({ ...f, jdRawText: e.target.value }))}
+          />
+        )}
+
+        {snapshotLoading && <p className="text-sm text-zinc-500">Loading snapshot…</p>}
+
         <div className="flex gap-2">
           <button className="rounded bg-black px-4 py-2 text-white" type="submit">
             {editingId ? "Save changes" : "Create application"}
@@ -205,6 +278,7 @@ export default function ApplicationsPage() {
               className="rounded border px-4 py-2"
               onClick={() => {
                 setEditingId(null);
+                setCurrentSnapshot(null);
                 setForm(emptyForm);
               }}
             >
