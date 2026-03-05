@@ -3,8 +3,34 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Application, FieldAnswer } from "@/lib/domain/application";
+import {
+  Application,
+  FieldAnswer,
+  InterviewRound,
+  InterviewRoundStatus,
+  InterviewRoundType,
+} from "@/lib/domain/application";
 import { JobDescriptionSnapshot } from "@/lib/domain/jobDescriptionSnapshot";
+
+const interviewRoundTypes: InterviewRoundType[] = [
+  "Recruiter Screen",
+  "Hiring Manager",
+  "Technical",
+  "System Design",
+  "Panel",
+  "Take-home",
+  "Final",
+  "Other",
+];
+
+const interviewStatuses: InterviewRoundStatus[] = ["Planned", "Scheduled", "Completed", "Cancelled"];
+
+const emptyRoundForm = {
+  round_type: "Recruiter Screen" as InterviewRoundType,
+  scheduled_at: "",
+  status: "Planned" as InterviewRoundStatus,
+  notes: "",
+};
 
 export default function ApplicationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -13,6 +39,9 @@ export default function ApplicationDetailPage() {
   const [application, setApplication] = useState<Application | null>(null);
   const [snapshot, setSnapshot] = useState<JobDescriptionSnapshot | null>(null);
   const [answers, setAnswers] = useState<FieldAnswer[]>([]);
+  const [rounds, setRounds] = useState<InterviewRound[]>([]);
+  const [editingRoundId, setEditingRoundId] = useState<string | null>(null);
+  const [roundForm, setRoundForm] = useState(emptyRoundForm);
   const [questionBlock, setQuestionBlock] = useState("");
   const [tone, setTone] = useState("professional");
   const [salaryExpectation, setSalaryExpectation] = useState("");
@@ -43,10 +72,11 @@ export default function ApplicationDetailPage() {
   const loadAll = useCallback(async () => {
     setLoading(true);
 
-    const [applicationRes, snapshotRes, answersRes] = await Promise.all([
+    const [applicationRes, snapshotRes, answersRes, roundsRes] = await Promise.all([
       fetch(`/api/applications/${id}`, { cache: "no-store" }),
       fetch(`/api/applications/${id}/job-description-snapshot`, { cache: "no-store" }),
       fetch(`/api/applications/${id}/answers`, { cache: "no-store" }),
+      fetch(`/api/applications/${id}/interview-rounds`, { cache: "no-store" }),
     ]);
 
     const applicationData = await applicationRes.json();
@@ -67,6 +97,11 @@ export default function ApplicationDetailPage() {
     const answersData = await answersRes.json();
     if (answersRes.ok) {
       setAnswers(answersData.answers ?? []);
+    }
+
+    const roundsData = await roundsRes.json();
+    if (roundsRes.ok) {
+      setRounds(roundsData.rounds ?? []);
     }
 
     setError(null);
@@ -201,6 +236,62 @@ export default function ApplicationDetailPage() {
     setSaving(false);
   }
 
+  async function saveRound(event: FormEvent) {
+    event.preventDefault();
+
+    const payload = {
+      round_type: roundForm.round_type,
+      scheduled_at: roundForm.scheduled_at ? new Date(roundForm.scheduled_at).toISOString() : "",
+      status: roundForm.status,
+      notes: roundForm.notes,
+    };
+
+    const response = await fetch(
+      editingRoundId
+        ? `/api/applications/${id}/interview-rounds/${editingRoundId}`
+        : `/api/applications/${id}/interview-rounds`,
+      {
+        method: editingRoundId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+
+    const data = await response.json();
+    if (!response.ok) {
+      setError(data.error ?? "Failed to save interview round");
+      return;
+    }
+
+    await loadAll();
+    setRoundForm(emptyRoundForm);
+    setEditingRoundId(null);
+  }
+
+  function startEditRound(round: InterviewRound) {
+    setEditingRoundId(round.id);
+    setRoundForm({
+      round_type: round.round_type,
+      scheduled_at: round.scheduled_at ? round.scheduled_at.slice(0, 16) : "",
+      status: round.status,
+      notes: round.notes,
+    });
+  }
+
+  async function removeRound(roundId: string) {
+    const response = await fetch(`/api/applications/${id}/interview-rounds/${roundId}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      setError(data.error ?? "Failed to delete interview round");
+      return;
+    }
+
+    await loadAll();
+  }
+
   if (loading) {
     return <main className="mx-auto max-w-5xl px-6 py-10">Loading…</main>;
   }
@@ -235,6 +326,95 @@ export default function ApplicationDetailPage() {
             Submitted at {new Date(application.submissionSnapshot.submitted_at).toLocaleString()} (frozen)
           </p>
         )}
+      </section>
+
+      <section className="rounded border p-4">
+        <h2 className="text-lg font-medium">Interview progression</h2>
+        {rounds.length === 0 ? (
+          <p className="mt-2 text-sm text-zinc-600">No interview rounds tracked yet.</p>
+        ) : (
+          <ol className="mt-3 space-y-2 border-l pl-4">
+            {rounds.map((round) => (
+              <li key={round.id} className="relative rounded border p-3 text-sm">
+                <span className="absolute -left-[22px] top-4 h-2.5 w-2.5 rounded-full bg-black" />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium">{round.round_type}</p>
+                  <p className="text-xs text-zinc-600">{round.status}</p>
+                </div>
+                <p className="mt-1 text-xs text-zinc-600">
+                  {round.scheduled_at ? new Date(round.scheduled_at).toLocaleString() : "Not scheduled"}
+                </p>
+                {round.notes && <p className="mt-2 whitespace-pre-wrap">{round.notes}</p>}
+                <div className="mt-2 flex gap-2">
+                  <button className="rounded border px-2 py-1 text-xs" type="button" onClick={() => startEditRound(round)}>
+                    Edit
+                  </button>
+                  <button
+                    className="rounded border border-red-300 px-2 py-1 text-xs text-red-700"
+                    type="button"
+                    onClick={() => removeRound(round.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+
+        <form onSubmit={saveRound} className="mt-4 grid gap-2 rounded border p-3 md:grid-cols-2">
+          <select
+            className="rounded border p-2"
+            value={roundForm.round_type}
+            onChange={(event) => setRoundForm((current) => ({ ...current, round_type: event.target.value as InterviewRoundType }))}
+          >
+            {interviewRoundTypes.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+          <select
+            className="rounded border p-2"
+            value={roundForm.status}
+            onChange={(event) => setRoundForm((current) => ({ ...current, status: event.target.value as InterviewRoundStatus }))}
+          >
+            {interviewStatuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+          <input
+            type="datetime-local"
+            className="rounded border p-2"
+            value={roundForm.scheduled_at}
+            onChange={(event) => setRoundForm((current) => ({ ...current, scheduled_at: event.target.value }))}
+          />
+          <input
+            className="rounded border p-2"
+            placeholder="Round notes"
+            value={roundForm.notes}
+            onChange={(event) => setRoundForm((current) => ({ ...current, notes: event.target.value }))}
+          />
+          <div className="md:col-span-2 flex gap-2">
+            <button type="submit" className="rounded bg-black px-3 py-2 text-sm text-white">
+              {editingRoundId ? "Update round" : "Add round"}
+            </button>
+            {editingRoundId && (
+              <button
+                type="button"
+                className="rounded border px-3 py-2 text-sm"
+                onClick={() => {
+                  setEditingRoundId(null);
+                  setRoundForm(emptyRoundForm);
+                }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
       </section>
 
       <section className="space-y-2 rounded border p-4">

@@ -2,6 +2,28 @@ export type ApplicationStatus = "Saved" | "Applied" | "Interview" | "Offer" | "R
 
 export type DocumentType = "CV" | "Cover";
 
+export type InterviewRoundType =
+  | "Recruiter Screen"
+  | "Hiring Manager"
+  | "Technical"
+  | "System Design"
+  | "Panel"
+  | "Take-home"
+  | "Final"
+  | "Other";
+
+export type InterviewRoundStatus = "Planned" | "Scheduled" | "Completed" | "Cancelled";
+
+export interface InterviewRound {
+  id: string;
+  application_id: string;
+  round_type: InterviewRoundType;
+  scheduled_at: string;
+  status: InterviewRoundStatus;
+  notes: string;
+  created_at: string;
+}
+
 export interface JobDescriptionSnapshot {
   title: string;
   company: string;
@@ -67,6 +89,7 @@ export interface Application {
   jobDescription: JobDescriptionSnapshot;
   fieldAnswers: FieldAnswer[];
   submissionSnapshot?: SubmissionSnapshot;
+  interviewRounds?: InterviewRound[];
   cvDocumentVersionId?: string;
   coverDocumentVersionId?: string;
   salaryExpectation?: string;
@@ -94,6 +117,13 @@ export interface ApplicationInput {
   cvDocumentVersionId?: string;
   coverDocumentVersionId?: string;
   salaryExpectation?: string;
+}
+
+export interface InterviewRoundInput {
+  round_type: InterviewRoundType;
+  scheduled_at?: string;
+  status?: InterviewRoundStatus;
+  notes?: string;
 }
 
 export const APPLICATION_STATUS_FLOW: Record<ApplicationStatus, ApplicationStatus[]> = {
