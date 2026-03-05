@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { PrepArtifact } from "@/lib/domain/application";
 import { applicationRepository } from "@/lib/repositories/applicationRepository";
 import { documentRepository } from "@/lib/repositories/documentRepository";
+import { fieldAnswerRepository } from "@/lib/repositories/fieldAnswerRepository";
 import { interviewerRepository } from "@/lib/repositories/interviewerRepository";
 import { interviewRoundRepository } from "@/lib/repositories/interviewRoundRepository";
 import { jobDescriptionSnapshotRepository } from "@/lib/repositories/jobDescriptionSnapshotRepository";
@@ -30,14 +31,32 @@ export class InterviewPrepService {
     if (!application || !round) throw new Error("Application or round not found");
 
     const submission = await submissionSnapshotRepository.getByApplicationId(input.applicationId);
+    const sourceMode = submission ? "submitted snapshot" : "current draft";
     const snapshotWarning = submission ? undefined : "Not submitted yet - generated from currently selected docs.";
 
-    const [jdSnapshot, cv, cover, interviewers] = await Promise.all([
+    const cvVersionId = submission?.cv_version_id ?? application.cvDocumentVersionId;
+    const coverVersionId = submission?.cover_version_id ?? application.coverDocumentVersionId;
+
+    const [jdSnapshot, cv, cover, interviewers, fieldAnswers] = await Promise.all([
       jobDescriptionSnapshotRepository.getByApplicationId(input.applicationId),
-      application.cvDocumentVersionId ? documentRepository.getById(application.cvDocumentVersionId) : null,
-      application.coverDocumentVersionId ? documentRepository.getById(application.coverDocumentVersionId) : null,
+      cvVersionId ? documentRepository.getById(cvVersionId) : null,
+      coverVersionId ? documentRepository.getById(coverVersionId) : null,
       interviewerRepository.listForRound(input.roundId),
+      fieldAnswerRepository.listByApplicationId(input.applicationId),
     ]);
+
+    const lockedFieldAnswers = submission
+      ? fieldAnswers.filter((answer) => submission.field_answer_refs.includes(answer.id))
+      : [];
+
+    const lockedFieldAnswersText = lockedFieldAnswers.length
+      ? lockedFieldAnswers
+          .map(
+            (answer) =>
+              `- Q: ${answer.question}\n  A: ${answer.final_answer || answer.ai_draft || "(no answer provided)"}`,
+          )
+          .join("\n")
+      : "None";
 
     let generatedText = this.fallbackPack(application.company, application.role, round.round_type, input.tone, interviewers.map((i) => i.notes || "").join("\n"));
 
@@ -46,6 +65,7 @@ export class InterviewPrepService {
         const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GENAI_API_KEY });
         const prompt = [
           "Create an interview prep pack with headings and bullet points.",
+          `Source mode: ${sourceMode}.`,
           `Tone: ${input.tone}. Length: ${input.length}.`,
           "Sections required: likely evaluation areas, key requirements with matching stories, 8-12 likely questions, suggested answer bullets anchored to CV/submitted claims, 5 strong questions to ask, risks/gaps and mitigation, salary positioning notes when relevant, and a 1-page cheat-sheet at end.",
           `Round type: ${round.round_type}. Round index: ${round.round_index}.`,
@@ -53,6 +73,8 @@ export class InterviewPrepService {
           `JD Snapshot:\n${jdSnapshot?.raw_text ?? application.jobDescription.description}`,
           `CV text:\n${cv?.text ?? ""}`,
           `Cover text:\n${cover?.text ?? ""}`,
+          `Salary expectation:\n${submission?.salary_expectation ?? application.salary_expectation}`,
+          `Locked field answers:\n${lockedFieldAnswersText}`,
           `Application notes:\n${application.notes}`,
         ].join("\n\n");
 
