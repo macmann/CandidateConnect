@@ -1,16 +1,11 @@
 "use client";
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback } from "react";
 import {
   ReactFlow,
   Controls,
   Background,
   MiniMap,
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  Connection,
-  Edge,
   ReactFlowProvider,
   Node,
 } from "@xyflow/react";
@@ -79,7 +74,6 @@ const BuilderCanvasContent = () => {
     setSelectedNode(null);
   }, [setSelectedNode]);
 
-  return (
   return (
     <div className="fixed inset-0 z-[100] flex w-full h-full bg-[#121212] text-gray-200 font-sans overflow-hidden">
       <Sidebar />
