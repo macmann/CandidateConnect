@@ -342,6 +342,12 @@ export default function ApplicationDetailPage() {
                   <select className="rounded border p-1" value={round.status} onChange={(e) => updateRoundStatus(round.id, e.target.value as InterviewRoundStatus)}>
                     {roundStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                   </select>
+                  <Link
+                    href={`/applications/${id}/interview-rounds/${round.id}/cheat-sheet`}
+                    className="rounded border border-zinc-900 px-2 py-1 text-xs font-medium text-zinc-900"
+                  >
+                    Cheat Sheet
+                  </Link>
                 </div>
                 <p className="text-sm text-zinc-600">Mode: {round.mode || "TBD"} · {round.location_or_link || "location TBD"}</p>
                 <p className="text-sm">Purpose: {round.purpose || "TBD"}</p>
