@@ -3,24 +3,86 @@ export type ApplicationStatus = "Saved" | "Applied" | "Interview" | "Offer" | "R
 export type DocumentType = "CV" | "Cover";
 
 export type InterviewRoundType =
-  | "Recruiter Screen"
+  | "Recruiter"
   | "Hiring Manager"
   | "Technical"
-  | "System Design"
+  | "Case"
   | "Panel"
-  | "Take-home"
-  | "Final"
-  | "Other";
+  | "Final";
 
-export type InterviewRoundStatus = "Planned" | "Scheduled" | "Completed" | "Cancelled";
+export type InterviewRoundStatus =
+  | "Scheduled"
+  | "Completed"
+  | "Passed"
+  | "Failed"
+  | "Cancelled";
+
+export type InterviewMode = "Zoom" | "Onsite" | "Phone";
 
 export interface InterviewRound {
   id: string;
   application_id: string;
+  round_index: number;
   round_type: InterviewRoundType;
-  scheduled_at: string;
+  scheduled_at?: string;
+  timezone?: string;
+  mode?: InterviewMode;
+  location_or_link?: string;
+  purpose?: string;
   status: InterviewRoundStatus;
   notes: string;
+  created_at: string;
+}
+
+export interface Interviewer {
+  id: string;
+  user_id: string;
+  name: string;
+  title: string;
+  department?: string;
+  linkedin_url?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface RoundInterviewer {
+  round_id: string;
+  interviewer_id: string;
+}
+
+export interface PrepArtifact {
+  id: string;
+  round_id: string;
+  generated_text: string;
+  version: number;
+  created_at: string;
+  pinned: boolean;
+  tone: "concise" | "detailed";
+  length: "short" | "full";
+  warning?: string;
+}
+
+export interface RoundDebrief {
+  id: string;
+  round_id: string;
+  raw_notes: string;
+  structured_fields: {
+    questions_asked: string;
+    went_well: string;
+    went_badly: string;
+    to_improve: string;
+    follow_up_tasks: string;
+  };
+  created_at: string;
+}
+
+export interface DebriefArtifact {
+  id: string;
+  round_id: string;
+  generated_summary: string;
+  improvements: string;
+  next_round_focus: string;
+  thank_you_email: string;
   created_at: string;
 }
 
@@ -83,7 +145,6 @@ export interface Application {
   created_at: string;
   updated_at: string;
 
-  // Backward compatibility aliases for existing callers.
   candidateName: string;
   candidateEmail: string;
   jobDescription: JobDescriptionSnapshot;
@@ -122,6 +183,10 @@ export interface ApplicationInput {
 export interface InterviewRoundInput {
   round_type: InterviewRoundType;
   scheduled_at?: string;
+  timezone?: string;
+  mode?: InterviewMode;
+  location_or_link?: string;
+  purpose?: string;
   status?: InterviewRoundStatus;
   notes?: string;
 }

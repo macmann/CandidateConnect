@@ -42,13 +42,18 @@ async function writeStore(store: InterviewRoundStore): Promise<void> {
   await writeFile(DATA_FILE, JSON.stringify(store, null, 2), "utf-8");
 }
 
-function createRound(applicationId: string, input: InterviewRoundInput): InterviewRound {
+function createRound(applicationId: string, input: InterviewRoundInput, roundIndex: number): InterviewRound {
   return {
     id: crypto.randomUUID(),
     application_id: applicationId,
+    round_index: roundIndex,
     round_type: input.round_type,
-    scheduled_at: input.scheduled_at ?? "",
-    status: input.status ?? "Planned",
+    scheduled_at: input.scheduled_at || undefined,
+    timezone: input.timezone || undefined,
+    mode: input.mode,
+    location_or_link: input.location_or_link || undefined,
+    purpose: input.purpose || undefined,
+    status: input.status ?? "Scheduled",
     notes: input.notes ?? "",
     created_at: nowIso(),
   };
@@ -59,26 +64,26 @@ export class InterviewRoundRepository {
     const store = await readStore();
     return store.rounds
       .filter((round) => round.application_id === applicationId)
-      .sort((a, b) => {
-        const left = a.scheduled_at || a.created_at;
-        const right = b.scheduled_at || b.created_at;
-        return left.localeCompare(right);
-      });
+      .sort((a, b) => a.round_index - b.round_index || a.created_at.localeCompare(b.created_at));
+  }
+
+  async getById(applicationId: string, roundId: string): Promise<InterviewRound | null> {
+    const store = await readStore();
+    return store.rounds.find((round) => round.id === roundId && round.application_id === applicationId) ?? null;
   }
 
   async create(applicationId: string, input: InterviewRoundInput): Promise<InterviewRound> {
     const store = await readStore();
-    const round = createRound(applicationId, input);
+    const maxRound = store.rounds
+      .filter((round) => round.application_id === applicationId)
+      .reduce((max, round) => Math.max(max, round.round_index), 0);
+    const round = createRound(applicationId, input, maxRound + 1);
     store.rounds.push(round);
     await writeStore(store);
     return round;
   }
 
-  async update(
-    applicationId: string,
-    roundId: string,
-    patch: Partial<InterviewRoundInput>,
-  ): Promise<InterviewRound | null> {
+  async update(applicationId: string, roundId: string, patch: Partial<InterviewRoundInput>): Promise<InterviewRound | null> {
     const store = await readStore();
     const index = store.rounds.findIndex(
       (round) => round.id === roundId && round.application_id === applicationId,
@@ -90,7 +95,12 @@ export class InterviewRoundRepository {
     const updated: InterviewRound = {
       ...current,
       round_type: patch.round_type ?? current.round_type,
-      scheduled_at: patch.scheduled_at ?? current.scheduled_at,
+      scheduled_at: patch.scheduled_at !== undefined ? patch.scheduled_at || undefined : current.scheduled_at,
+      timezone: patch.timezone !== undefined ? patch.timezone || undefined : current.timezone,
+      mode: patch.mode !== undefined ? patch.mode : current.mode,
+      location_or_link:
+        patch.location_or_link !== undefined ? patch.location_or_link || undefined : current.location_or_link,
+      purpose: patch.purpose !== undefined ? patch.purpose || undefined : current.purpose,
       status: patch.status ?? current.status,
       notes: patch.notes ?? current.notes,
     };
