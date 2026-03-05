@@ -1,4 +1,5 @@
 import { FieldAnswer } from "@/lib/domain/application";
+import { GoogleGenAI } from "@google/genai";
 import { applicationRepository } from "@/lib/repositories/applicationRepository";
 import { documentRepository } from "@/lib/repositories/documentRepository";
 import { fieldAnswerRepository } from "@/lib/repositories/fieldAnswerRepository";
@@ -27,23 +28,113 @@ function splitQuestions(questionBlock: string): string[] {
     .filter(Boolean);
 }
 
-function generateDraft(params: {
-  question: string;
+const FALLBACK_DRAFT_MESSAGE =
+  "We couldn't generate an AI draft right now. Please review your profile highlights and draft a direct response tailored to this question.";
+
+interface DraftGeneration {
+  questionId: number;
+  answer: string;
+}
+
+function parseDraftGenerations(text: string): DraftGeneration[] {
+  const parsed = JSON.parse(text) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error("Model output is not an array");
+  }
+
+  return parsed.map((item) => {
+    if (
+      !item ||
+      typeof item !== "object" ||
+      typeof (item as DraftGeneration).questionId !== "number" ||
+      typeof (item as DraftGeneration).answer !== "string"
+    ) {
+      throw new Error("Model output item has an invalid shape");
+    }
+
+    return {
+      questionId: (item as DraftGeneration).questionId,
+      answer: (item as DraftGeneration).answer.trim(),
+    };
+  });
+}
+
+async function generateDrafts(params: {
+  questions: string[];
   tone: string;
   jobDescriptionText: string;
   profileText: string;
-  candidateName: string;
-}): string {
-  const { question, tone, jobDescriptionText, profileText, candidateName } = params;
-  const jdSnippet = jobDescriptionText.slice(0, 280).replace(/\s+/g, " ");
-  const profileSnippet = profileText.slice(0, 280).replace(/\s+/g, " ");
+}): Promise<Map<number, string>> {
+  if (!process.env.GOOGLE_GENAI_API_KEY) {
+    throw new Error("GOOGLE_GENAI_API_KEY is not configured");
+  }
 
-  return [
-    `(${tone} tone) ${candidateName} is well aligned with this role and can answer: \"${question}\".`,
-    `Relevant role context: ${jdSnippet || "No job description snapshot found."}`,
-    `Relevant profile context: ${profileSnippet || "No profile documents linked yet."}`,
-    "I have delivered similar work with measurable outcomes, and I can bring that same execution, collaboration, and ownership to this position.",
-  ].join("\n\n");
+  const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GENAI_API_KEY });
+  const questionPayload = params.questions.map((question, index) => ({
+    questionId: index,
+    question,
+  }));
+
+  const prompt = [
+    "You are writing job-application free-text responses.",
+    "Return JSON only (no markdown, no commentary) as an array where each item has this exact shape:",
+    '[{"questionId": number, "answer": string}]',
+    "Rules:",
+    "- Return exactly one answer per input question.",
+    "- Keep each answer tied to its matching questionId.",
+    "- Use the requested tone.",
+    "- Make answers specific, concise, and evidence-oriented.",
+    "- If context is missing, still provide a professional answer without inventing facts.",
+    "",
+    `Tone: ${params.tone}`,
+    "",
+    "Questions:",
+    JSON.stringify(questionPayload, null, 2),
+    "",
+    "Job description snapshot raw text:",
+    params.jobDescriptionText || "",
+    "",
+    "Candidate profile context from selected CV/Cover + applicant profile:",
+    params.profileText || "",
+  ].join("\n");
+
+  const response = await ai.models.generateContent({
+    model: "gemini-1.5-flash",
+    contents: prompt,
+  });
+
+  const rawText = response.text;
+  if (!rawText) {
+    throw new Error("Model returned an empty response");
+  }
+
+  const drafts = parseDraftGenerations(rawText);
+  if (drafts.length !== params.questions.length) {
+    throw new Error("Model returned mismatched answer count");
+  }
+
+  const mappedDrafts = new Map<number, string>();
+  for (const draft of drafts) {
+    if (draft.questionId < 0 || draft.questionId >= params.questions.length) {
+      throw new Error("Model returned an out-of-range questionId");
+    }
+
+    if (!draft.answer) {
+      throw new Error(`Model returned an empty answer for questionId ${draft.questionId}`);
+    }
+
+    if (mappedDrafts.has(draft.questionId)) {
+      throw new Error(`Model returned duplicate answers for questionId ${draft.questionId}`);
+    }
+
+    mappedDrafts.set(draft.questionId, draft.answer);
+  }
+
+  if (mappedDrafts.size !== params.questions.length) {
+    throw new Error("Model output is missing answers for one or more questions");
+  }
+
+  return mappedDrafts;
 }
 
 export class FieldAnswerService {
@@ -83,16 +174,23 @@ export class FieldAnswerService {
       .filter(Boolean)
       .join("\n");
 
-    const records = questions.map((question) => ({
-      application_id: input.applicationId,
-      question,
-      ai_draft: generateDraft({
-        question,
+    let generatedDrafts = new Map<number, string>();
+    try {
+      generatedDrafts = await generateDrafts({
+        questions,
         tone: input.tone,
         jobDescriptionText: snapshot?.raw_text ?? application.jobDescription.description,
         profileText,
-        candidateName: application.candidateName,
-      }),
+      });
+    } catch (error) {
+      console.error("Failed to generate AI drafts for field answers:", error);
+      generatedDrafts = new Map(questions.map((_, index) => [index, FALLBACK_DRAFT_MESSAGE]));
+    }
+
+    const records = questions.map((question, index) => ({
+      application_id: input.applicationId,
+      question,
+      ai_draft: generatedDrafts.get(index) ?? FALLBACK_DRAFT_MESSAGE,
       snapshot_id: input.snapshotId,
     }));
 
