@@ -9,6 +9,7 @@ import {
 } from "@/lib/domain/application";
 import { documentRepository } from "@/lib/repositories/documentRepository";
 import { submissionSnapshotRepository } from "@/lib/repositories/submissionSnapshotRepository";
+import { interviewRoundRepository } from "@/lib/repositories/interviewRoundRepository";
 
 interface ApplicationStore {
   applications: Application[];
@@ -204,9 +205,10 @@ function normalizeApplication(raw: LegacyApplicationRecord): Application {
 }
 
 async function hydrateSelection(application: Application): Promise<Application> {
-  const [selected, submissionSnapshot] = await Promise.all([
+  const [selected, submissionSnapshot, interviewRounds] = await Promise.all([
     documentRepository.getSelectedVersionIds(application.id),
     submissionSnapshotRepository.getByApplicationId(application.id),
+    interviewRoundRepository.listByApplicationId(application.id),
   ]);
 
   return {
@@ -214,6 +216,7 @@ async function hydrateSelection(application: Application): Promise<Application> 
     submissionSnapshot: submissionSnapshot ?? application.submissionSnapshot,
     cvDocumentVersionId: selected.cvDocumentVersionId ?? application.cvDocumentVersionId,
     coverDocumentVersionId: selected.coverDocumentVersionId ?? application.coverDocumentVersionId,
+    interviewRounds,
   };
 }
 

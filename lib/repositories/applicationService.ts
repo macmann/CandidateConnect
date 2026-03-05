@@ -36,8 +36,7 @@ function hasFrozenFieldChanges(input: Partial<ApplicationInput>): boolean {
       input.role !== undefined ||
       input.location !== undefined ||
       input.job_url !== undefined ||
-      input.applied_date !== undefined ||
-      input.notes !== undefined,
+      input.applied_date !== undefined,
   );
 }
 
