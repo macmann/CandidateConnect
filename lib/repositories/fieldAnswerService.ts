@@ -57,6 +57,10 @@ export class FieldAnswerService {
       throw new Error("Application not found");
     }
 
+    if (application.submissionSnapshot) {
+      throw new Error("Application is submitted; answers are locked");
+    }
+
     const questions = splitQuestions(input.questionBlock);
     if (!questions.length) {
       throw new Error("No questions provided");
@@ -103,6 +107,10 @@ export class FieldAnswerService {
     const application = await applicationRepository.getById(applicationId);
     if (!application) {
       throw new Error("Application not found");
+    }
+
+    if (application.submissionSnapshot) {
+      throw new Error("Application is submitted; answers are locked");
     }
 
     await fieldAnswerRepository.saveFinalAnswers(applicationId, answers);

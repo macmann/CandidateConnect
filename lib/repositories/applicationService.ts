@@ -23,6 +23,17 @@ function assertCreateInput(input: Partial<ApplicationInput>): asserts input is A
   }
 }
 
+function hasFrozenFieldChanges(input: Partial<ApplicationInput>): boolean {
+  return Boolean(
+    input.candidateName !== undefined ||
+      input.candidateEmail !== undefined ||
+      input.jobDescription !== undefined ||
+      input.cvDocumentVersionId !== undefined ||
+      input.coverDocumentVersionId !== undefined ||
+      input.salaryExpectation !== undefined,
+  );
+}
+
 export class ApplicationService {
   async listApplications(): Promise<Application[]> {
     return applicationRepository.list();
@@ -41,6 +52,13 @@ export class ApplicationService {
     id: string,
     input: Partial<ApplicationInput>,
   ): Promise<Application | null> {
+    const current = await applicationRepository.getById(id);
+    if (!current) return null;
+
+    if (current.submissionSnapshot && hasFrozenFieldChanges(input)) {
+      throw new Error("Application is submitted; frozen fields cannot be edited");
+    }
+
     return applicationRepository.update(id, input);
   }
 

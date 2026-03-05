@@ -8,6 +8,17 @@ function assertRawText(rawText: string): void {
   }
 }
 
+async function assertSnapshotEditable(applicationId: string): Promise<void> {
+  const application = await applicationRepository.getById(applicationId);
+  if (!application) {
+    throw new Error("Application not found");
+  }
+
+  if (application.submissionSnapshot) {
+    throw new Error("Application is submitted; JD snapshot is locked");
+  }
+}
+
 export class JobDescriptionSnapshotService {
   async getByApplicationId(applicationId: string): Promise<JobDescriptionSnapshot | null> {
     return jobDescriptionSnapshotRepository.getByApplicationId(applicationId);
@@ -18,11 +29,7 @@ export class JobDescriptionSnapshotService {
     rawText: string,
   ): Promise<JobDescriptionSnapshot> {
     assertRawText(rawText);
-
-    const application = await applicationRepository.getById(applicationId);
-    if (!application) {
-      throw new Error("Application not found");
-    }
+    await assertSnapshotEditable(applicationId);
 
     const existing = await jobDescriptionSnapshotRepository.getByApplicationId(applicationId);
     if (existing) {
@@ -37,6 +44,7 @@ export class JobDescriptionSnapshotService {
 
   async updateRawText(applicationId: string, rawText: string): Promise<JobDescriptionSnapshot> {
     assertRawText(rawText);
+    await assertSnapshotEditable(applicationId);
 
     const existing = await jobDescriptionSnapshotRepository.getByApplicationId(applicationId);
     if (!existing) {
@@ -47,6 +55,8 @@ export class JobDescriptionSnapshotService {
   }
 
   async deleteByApplicationId(applicationId: string): Promise<void> {
+    await assertSnapshotEditable(applicationId);
+
     const existing = await jobDescriptionSnapshotRepository.getByApplicationId(applicationId);
     if (!existing) {
       throw new Error("Snapshot not found");

@@ -32,15 +32,20 @@ export interface FieldAnswer {
   ai_draft: string;
   final_answer: string;
   snapshot_id?: string;
+  locked_at?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface SubmissionSnapshot {
-  submittedAt: string;
-  channel: "company_site" | "linkedin" | "referral" | "email" | "other";
-  confirmationCode?: string;
-  notes?: string;
+  id: string;
+  application_id: string;
+  cv_version_id: string;
+  cover_version_id: string;
+  salary_expectation: string;
+  jd_snapshot_ref: string;
+  field_answer_refs: string[];
+  submitted_at: string;
 }
 
 export interface Application {
@@ -53,6 +58,7 @@ export interface Application {
   submissionSnapshot?: SubmissionSnapshot;
   cvDocumentVersionId?: string;
   coverDocumentVersionId?: string;
+  salaryExpectation?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +74,7 @@ export interface ApplicationInput {
   submissionSnapshot?: SubmissionSnapshot;
   cvDocumentVersionId?: string;
   coverDocumentVersionId?: string;
+  salaryExpectation?: string;
 }
 
 export const APPLICATION_STATUS_FLOW: Record<ApplicationStatus, ApplicationStatus[]> = {

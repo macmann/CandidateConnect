@@ -85,6 +85,7 @@ export class FieldAnswerRepository {
             ai_draft: entry.ai_draft,
             final_answer: entry.final_answer ?? existing.final_answer,
             snapshot_id: entry.snapshot_id ?? existing.snapshot_id,
+            locked_at: existing.locked_at,
             updated_at: timestamp,
           };
           store.answers[existingIndex] = updated;
@@ -109,6 +110,17 @@ export class FieldAnswerRepository {
 
     await writeStore(store);
     return answers;
+  }
+
+  async lockByApplicationId(applicationId: string): Promise<void> {
+    const store = await readStore();
+    const timestamp = nowIso();
+
+    store.answers = store.answers.map((answer) =>
+      answer.application_id === applicationId ? { ...answer, locked_at: answer.locked_at ?? timestamp } : answer,
+    );
+
+    await writeStore(store);
   }
 
   async saveFinalAnswers(

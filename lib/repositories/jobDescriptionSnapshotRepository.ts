@@ -86,6 +86,23 @@ export class JobDescriptionSnapshotRepository {
     return updated;
   }
 
+
+  async lockByApplicationId(applicationId: string): Promise<JobDescriptionSnapshot | null> {
+    const store = await readStore();
+    const index = store.snapshots.findIndex((snapshot) => snapshot.application_id === applicationId);
+
+    if (index < 0) return null;
+
+    const updated: JobDescriptionSnapshot = {
+      ...store.snapshots[index],
+      locked_at: store.snapshots[index].locked_at ?? nowIso(),
+    };
+
+    store.snapshots[index] = updated;
+    await writeStore(store);
+    return updated;
+  }
+
   async deleteByApplicationId(applicationId: string): Promise<boolean> {
     const store = await readStore();
     const before = store.snapshots.length;

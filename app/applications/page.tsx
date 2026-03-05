@@ -20,6 +20,7 @@ const emptyForm = {
   jdRawText: "",
   cvDocumentVersionId: "",
   coverDocumentVersionId: "",
+  salaryExpectation: "",
 };
 
 export default function ApplicationsPage() {
@@ -138,6 +139,7 @@ export default function ApplicationsPage() {
       jdRawText: "",
       cvDocumentVersionId: application.cvDocumentVersionId ?? "",
       coverDocumentVersionId: application.coverDocumentVersionId ?? "",
+      salaryExpectation: application.salaryExpectation ?? "",
     });
 
     await loadSnapshot(application.id);
@@ -157,6 +159,7 @@ export default function ApplicationsPage() {
       },
       cvDocumentVersionId: form.cvDocumentVersionId || undefined,
       coverDocumentVersionId: form.coverDocumentVersionId || undefined,
+      salaryExpectation: form.salaryExpectation || undefined,
     };
 
     const response = await fetch(
@@ -294,6 +297,12 @@ export default function ApplicationsPage() {
             ))}
           </select>
         </div>
+        <input
+          placeholder="Salary expectation"
+          className="rounded border p-2 md:col-span-2"
+          value={form.salaryExpectation}
+          onChange={(e) => setForm((f) => ({ ...f, salaryExpectation: e.target.value }))}
+        />
         <textarea
           required
           placeholder="Job description"
@@ -387,7 +396,7 @@ export default function ApplicationsPage() {
                   <tr key={application.id} className="border-b">
                     <td className="px-2 py-2">{application.candidateName}</td>
                     <td className="px-2 py-2">{application.jobDescription.company}</td>
-                    <td className="px-2 py-2">{application.status}</td>
+                    <td className="px-2 py-2">{application.status}{application.submissionSnapshot ? " (Submitted)" : ""}</td>
                     <td className="px-2 py-2">
                       {new Date(application.updatedAt).toLocaleString()}
                     </td>
@@ -399,14 +408,20 @@ export default function ApplicationsPage() {
                     <td className="px-2 py-2">
                       <div className="flex gap-2">
                         <button
-                          className="rounded border px-3 py-1"
+                          className="rounded border px-3 py-1 disabled:opacity-50"
                           onClick={() => startEdit(application)}
+                          disabled={Boolean(application.submissionSnapshot)}
                         >
                           Edit
                         </button>
                         <Link href={`/applications/${application.id}`} className="rounded border px-3 py-1">
                           Answers
                         </Link>
+                        {application.submissionSnapshot && (
+                          <Link href={`/applications/${application.id}/pack`} className="rounded border px-3 py-1">
+                            Pack
+                          </Link>
+                        )}
                       </div>
                     </td>
                   </tr>
