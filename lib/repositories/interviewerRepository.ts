@@ -61,6 +61,20 @@ export class InterviewerRepository {
     return store.interviewers.filter((i) => ids.includes(i.id));
   }
 
+  async listLinkedToApplication(userId: string, roundIds: string[]): Promise<Interviewer[]> {
+    if (!roundIds.length) return [];
+
+    const store = await readStore();
+    const roundIdSet = new Set(roundIds);
+    const linkedIds = new Set(
+      store.roundInterviewers
+        .filter((item) => roundIdSet.has(item.round_id))
+        .map((item) => item.interviewer_id),
+    );
+
+    return store.interviewers.filter((interviewer) => interviewer.user_id === userId && linkedIds.has(interviewer.id));
+  }
+
   async setRoundInterviewers(roundId: string, interviewerIds: string[]): Promise<void> {
     const store = await readStore();
     store.roundInterviewers = store.roundInterviewers.filter((item) => item.round_id !== roundId);

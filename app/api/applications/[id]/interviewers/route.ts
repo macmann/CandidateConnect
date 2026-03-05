@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { interviewRoundRepository } from "@/lib/repositories/interviewRoundRepository";
 import { interviewerRepository } from "@/lib/repositories/interviewerRepository";
 
 const USER_ID = "default-user";
 
-export async function GET() {
-  const interviewers = await interviewerRepository.listByUser(USER_ID);
-  return NextResponse.json({ interviewers });
+export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const [allInterviewers, applicationRounds] = await Promise.all([
+    interviewerRepository.listByUser(USER_ID),
+    interviewRoundRepository.listByApplicationId(params.id),
+  ]);
+  const linkedInterviewers = await interviewerRepository.listLinkedToApplication(
+    USER_ID,
+    applicationRounds.map((round) => round.id),
+  );
+
+  return NextResponse.json({
+    interviewers: allInterviewers,
+    linked_interviewers: linkedInterviewers,
+  });
 }
 
 export async function POST(request: NextRequest) {
