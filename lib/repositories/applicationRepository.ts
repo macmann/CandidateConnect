@@ -8,6 +8,7 @@ import {
   ApplicationStatus,
 } from "@/lib/domain/application";
 import { documentRepository } from "@/lib/repositories/documentRepository";
+import { submissionSnapshotRepository } from "@/lib/repositories/submissionSnapshotRepository";
 
 interface ApplicationStore {
   applications: Application[];
@@ -64,6 +65,7 @@ function createApplication(input: ApplicationInput): Application {
     submissionSnapshot: input.submissionSnapshot,
     cvDocumentVersionId: input.cvDocumentVersionId,
     coverDocumentVersionId: input.coverDocumentVersionId,
+    salaryExpectation: input.salaryExpectation,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -86,6 +88,7 @@ function mergeApplication(existing: Application, patch: Partial<ApplicationInput
     submissionSnapshot: patch.submissionSnapshot ?? existing.submissionSnapshot,
     cvDocumentVersionId: patch.cvDocumentVersionId ?? existing.cvDocumentVersionId,
     coverDocumentVersionId: patch.coverDocumentVersionId ?? existing.coverDocumentVersionId,
+    salaryExpectation: patch.salaryExpectation ?? existing.salaryExpectation,
     updatedAt: nowIso(),
   };
 
@@ -93,9 +96,14 @@ function mergeApplication(existing: Application, patch: Partial<ApplicationInput
 }
 
 async function hydrateSelection(application: Application): Promise<Application> {
-  const selected = await documentRepository.getSelectedVersionIds(application.id);
+  const [selected, submissionSnapshot] = await Promise.all([
+    documentRepository.getSelectedVersionIds(application.id),
+    submissionSnapshotRepository.getByApplicationId(application.id),
+  ]);
+
   return {
     ...application,
+    submissionSnapshot: submissionSnapshot ?? application.submissionSnapshot,
     cvDocumentVersionId: selected.cvDocumentVersionId ?? application.cvDocumentVersionId,
     coverDocumentVersionId: selected.coverDocumentVersionId ?? application.coverDocumentVersionId,
   };

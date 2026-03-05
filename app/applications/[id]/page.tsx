@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Application, FieldAnswer } from "@/lib/domain/application";
@@ -15,11 +15,12 @@ export default function ApplicationDetailPage() {
   const [answers, setAnswers] = useState<FieldAnswer[]>([]);
   const [questionBlock, setQuestionBlock] = useState("");
   const [tone, setTone] = useState("professional");
+  const [salaryExpectation, setSalaryExpectation] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
 
     const [applicationRes, snapshotRes, answersRes] = await Promise.all([
@@ -36,6 +37,7 @@ export default function ApplicationDetailPage() {
     }
 
     setApplication(applicationData.application ?? null);
+    setSalaryExpectation(applicationData.application?.salaryExpectation ?? "");
 
     if (snapshotRes.ok) {
       const snapshotData = await snapshotRes.json();
@@ -49,19 +51,20 @@ export default function ApplicationDetailPage() {
 
     setError(null);
     setLoading(false);
-  }
+  }, [id]);
 
   useEffect(() => {
     if (id) {
       loadAll();
     }
-  }, [id]);
+  }, [id, loadAll]);
 
   const canGenerate = useMemo(() => questionBlock.trim().length > 0, [questionBlock]);
+  const isSubmitted = Boolean(application?.submissionSnapshot);
 
   async function onGenerate(event: FormEvent) {
     event.preventDefault();
-    if (!canGenerate) return;
+    if (!canGenerate || isSubmitted) return;
 
     setSaving(true);
     const response = await fetch(`/api/applications/${id}/answers/generate`, {
@@ -87,6 +90,7 @@ export default function ApplicationDetailPage() {
   }
 
   async function regenerateQuestion(question: string) {
+    if (isSubmitted) return;
     setSaving(true);
     const response = await fetch(`/api/applications/${id}/answers/generate`, {
       method: "POST",
@@ -110,6 +114,7 @@ export default function ApplicationDetailPage() {
   }
 
   async function saveFinalAnswers() {
+    if (isSubmitted) return;
     setSaving(true);
     const response = await fetch(`/api/applications/${id}/answers`, {
       method: "PUT",
@@ -129,7 +134,49 @@ export default function ApplicationDetailPage() {
       return;
     }
 
+    const salaryResponse = await fetch(`/api/applications/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ salaryExpectation }),
+    });
+
+    const salaryData = await salaryResponse.json();
+    if (!salaryResponse.ok) {
+      setError(salaryData.error ?? "Failed to save salary expectation");
+      setSaving(false);
+      return;
+    }
+
+    setApplication(salaryData.application ?? application);
     setAnswers(data.answers ?? []);
+    setError(null);
+    setSaving(false);
+  }
+
+  async function submitApplication() {
+    setSaving(true);
+    const salaryResponse = await fetch(`/api/applications/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ salaryExpectation }),
+    });
+
+    if (!salaryResponse.ok) {
+      const salaryData = await salaryResponse.json();
+      setError(salaryData.error ?? "Failed to save salary expectation");
+      setSaving(false);
+      return;
+    }
+
+    const response = await fetch(`/api/applications/${id}/submit`, { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) {
+      setError(data.error ?? "Failed to submit application");
+      setSaving(false);
+      return;
+    }
+
+    setApplication(data.application ?? null);
     setError(null);
     setSaving(false);
   }
@@ -146,9 +193,16 @@ export default function ApplicationDetailPage() {
     <main className="mx-auto flex max-w-5xl flex-col gap-5 px-6 py-10">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Application answer workflow</h1>
-        <Link href="/applications" className="rounded border px-3 py-2 text-sm">
-          Back to applications
-        </Link>
+        <div className="flex gap-2">
+          {isSubmitted && (
+            <Link href={`/applications/${application.id}/pack`} className="rounded border px-3 py-2 text-sm">
+              View application pack
+            </Link>
+          )}
+          <Link href="/applications" className="rounded border px-3 py-2 text-sm">
+            Back to applications
+          </Link>
+        </div>
       </div>
 
       <section className="rounded border p-4 text-sm">
@@ -156,6 +210,22 @@ export default function ApplicationDetailPage() {
         <p className="text-zinc-600">
           {application.jobDescription.title} at {application.jobDescription.company}
         </p>
+        {application.submissionSnapshot && (
+          <p className="mt-1 text-emerald-700">
+            Submitted at {new Date(application.submissionSnapshot.submitted_at).toLocaleString()} (frozen)
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-2 rounded border p-4">
+        <h2 className="text-lg font-medium">Compensation</h2>
+        <input
+          className="w-full rounded border p-2"
+          value={salaryExpectation}
+          onChange={(event) => setSalaryExpectation(event.target.value)}
+          disabled={isSubmitted || saving}
+          placeholder="Salary expectation (required before submit)"
+        />
       </section>
 
       <form onSubmit={onGenerate} className="space-y-3 rounded border p-4">
@@ -165,17 +235,16 @@ export default function ApplicationDetailPage() {
           value={tone}
           onChange={(event) => setTone(event.target.value)}
           placeholder="Tone (e.g. professional, concise, confident)"
+          disabled={isSubmitted}
         />
         <textarea
           className="min-h-36 w-full rounded border p-2"
           placeholder="Paste one or multiple application questions"
           value={questionBlock}
           onChange={(event) => setQuestionBlock(event.target.value)}
+          disabled={isSubmitted}
         />
-        <button
-          className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-          disabled={!canGenerate || saving}
-        >
+        <button className="rounded bg-black px-4 py-2 text-white disabled:opacity-50" disabled={!canGenerate || saving || isSubmitted}>
           {saving ? "Working…" : "Generate drafts"}
         </button>
       </form>
@@ -185,13 +254,14 @@ export default function ApplicationDetailPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium">Question answers</h2>
-          <button
-            className="rounded border px-3 py-2 text-sm"
-            onClick={saveFinalAnswers}
-            disabled={saving}
-          >
-            Save final answers
-          </button>
+          <div className="flex gap-2">
+            <button className="rounded border px-3 py-2 text-sm" onClick={saveFinalAnswers} disabled={saving || isSubmitted}>
+              Save final answers
+            </button>
+            <button className="rounded bg-emerald-700 px-3 py-2 text-sm text-white disabled:opacity-50" onClick={submitApplication} disabled={saving || isSubmitted}>
+              Submit application
+            </button>
+          </div>
         </div>
 
         {answers.length === 0 ? (
@@ -205,6 +275,7 @@ export default function ApplicationDetailPage() {
                   className="rounded border px-3 py-1 text-xs"
                   onClick={() => regenerateQuestion(answer.question)}
                   type="button"
+                  disabled={isSubmitted}
                 >
                   Regenerate
                 </button>
@@ -221,6 +292,7 @@ export default function ApplicationDetailPage() {
                   )
                 }
                 placeholder="Edit final answer before saving"
+                disabled={isSubmitted}
               />
             </article>
           ))
