@@ -5,480 +5,310 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   Application,
-  FieldAnswer,
   InterviewRound,
   InterviewRoundStatus,
   InterviewRoundType,
+  Interviewer,
+  PrepArtifact,
 } from "@/lib/domain/application";
-import { JobDescriptionSnapshot } from "@/lib/domain/jobDescriptionSnapshot";
 
-const roundTypes: InterviewRoundType[] = [
-  "Recruiter Screen",
-  "Hiring Manager",
-  "Technical",
-  "System Design",
-  "Panel",
-  "Take-home",
-  "Final",
-  "Other",
-];
-
-const roundStatuses: InterviewRoundStatus[] = ["Planned", "Scheduled", "Completed", "Cancelled"];
+const roundTypes: InterviewRoundType[] = ["Recruiter", "Hiring Manager", "Technical", "Case", "Panel", "Final"];
+const roundStatuses: InterviewRoundStatus[] = ["Scheduled", "Completed", "Passed", "Failed", "Cancelled"];
 
 export default function ApplicationDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
 
   const [application, setApplication] = useState<Application | null>(null);
-  const [snapshot, setSnapshot] = useState<JobDescriptionSnapshot | null>(null);
-  const [answers, setAnswers] = useState<FieldAnswer[]>([]);
   const [rounds, setRounds] = useState<InterviewRound[]>([]);
-  const [questionBlock, setQuestionBlock] = useState("");
-  const [tone, setTone] = useState("professional");
-  const [salaryExpectation, setSalaryExpectation] = useState("");
-  const [roundType, setRoundType] = useState<InterviewRoundType>("Recruiter Screen");
-  const [roundDateTime, setRoundDateTime] = useState("");
-  const [roundNotes, setRoundNotes] = useState("");
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [interviewers, setInterviewers] = useState<Interviewer[]>([]);
+  const [roundPeople, setRoundPeople] = useState<Record<string, Interviewer[]>>({});
+  const [prepByRound, setPrepByRound] = useState<Record<string, PrepArtifact[]>>({});
+  const [activities, setActivities] = useState<Array<{ id: string; message: string; created_at: string }>>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
+  const [roundType, setRoundType] = useState<InterviewRoundType>("Recruiter");
+  const [datetime, setDatetime] = useState("");
+  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  const [mode, setMode] = useState("Zoom");
+  const [location, setLocation] = useState("");
+  const [purpose, setPurpose] = useState("");
 
-    const [applicationRes, snapshotRes, answersRes, roundsRes] = await Promise.all([
+  const [personName, setPersonName] = useState("");
+  const [personTitle, setPersonTitle] = useState("");
+  const [personNotes, setPersonNotes] = useState("");
+
+  const [prepTone, setPrepTone] = useState<"concise" | "detailed">("concise");
+  const [prepLength, setPrepLength] = useState<"short" | "full">("short");
+
+  const [debrief, setDebrief] = useState<Record<string, Record<string, string>>>({});
+
+  const load = useCallback(async () => {
+    const [applicationRes, roundsRes, interviewerRes, activityRes] = await Promise.all([
       fetch(`/api/applications/${id}`, { cache: "no-store" }),
-      fetch(`/api/applications/${id}/job-description-snapshot`, { cache: "no-store" }),
-      fetch(`/api/applications/${id}/answers`, { cache: "no-store" }),
       fetch(`/api/applications/${id}/interview-rounds`, { cache: "no-store" }),
+      fetch(`/api/applications/${id}/interviewers`, { cache: "no-store" }),
+      fetch(`/api/applications/${id}/activity`, { cache: "no-store" }),
     ]);
 
-    const applicationData = await applicationRes.json();
+    const appData = await applicationRes.json();
     if (!applicationRes.ok) {
-      setError(applicationData.error ?? "Failed to load application");
-      setLoading(false);
+      setError(appData.error ?? "Failed to load");
       return;
     }
 
-    setApplication(applicationData.application ?? null);
-    setSalaryExpectation(applicationData.application?.salary_expectation ?? "");
-
-    if (snapshotRes.ok) {
-      const snapshotData = await snapshotRes.json();
-      setSnapshot(snapshotData.snapshot ?? null);
-    }
-
-    const answersData = await answersRes.json();
-    if (answersRes.ok) {
-      setAnswers(answersData.answers ?? []);
-    }
-
+    setApplication(appData.application);
     const roundsData = await roundsRes.json();
-    if (roundsRes.ok) {
-      setRounds(roundsData.rounds ?? []);
-    }
+    const interviewersData = await interviewerRes.json();
+    const activityData = await activityRes.json();
+    const loadedRounds: InterviewRound[] = roundsData.rounds ?? [];
+    setRounds(loadedRounds);
+    setInterviewers(interviewersData.interviewers ?? []);
+    setActivities(activityData.activities ?? []);
 
+    const people: Record<string, Interviewer[]> = {};
+    const preps: Record<string, PrepArtifact[]> = {};
+    await Promise.all(
+      loadedRounds.map(async (round) => {
+        const [peopleRes, prepRes] = await Promise.all([
+          fetch(`/api/applications/${id}/interview-rounds/${round.id}/interviewers`, { cache: "no-store" }),
+          fetch(`/api/applications/${id}/interview-rounds/${round.id}/prep-pack`, { cache: "no-store" }),
+        ]);
+        const peopleData = await peopleRes.json();
+        const prepData = await prepRes.json();
+        people[round.id] = peopleData.interviewers ?? [];
+        preps[round.id] = prepData.artifacts ?? [];
+      }),
+    );
+
+    setRoundPeople(people);
+    setPrepByRound(preps);
     setError(null);
-    setLoading(false);
   }, [id]);
 
   useEffect(() => {
-    if (id) {
-      loadAll();
-    }
-  }, [id, loadAll]);
+    if (id) load();
+  }, [id, load]);
 
-  const canGenerate = useMemo(() => questionBlock.trim().length > 0, [questionBlock]);
-  const isSubmitted = Boolean(application?.submissionSnapshot);
-
-  async function onGenerate(event: FormEvent) {
-    event.preventDefault();
-    if (!canGenerate || isSubmitted) return;
-
-    setSaving(true);
-    const response = await fetch(`/api/applications/${id}/answers/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question_block: questionBlock,
-        tone,
-        snapshot_id: snapshot?.created_at,
-      }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error ?? "Failed to generate drafts");
-      setSaving(false);
-      return;
-    }
-
-    setAnswers(data.answers ?? []);
-    setError(null);
-    setSaving(false);
-  }
-
-  async function regenerateQuestion(question: string) {
-    if (isSubmitted) return;
-    setSaving(true);
-    const response = await fetch(`/api/applications/${id}/answers/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question_block: question,
-        tone,
-        snapshot_id: snapshot?.created_at,
-      }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error ?? "Failed to regenerate draft");
-      setSaving(false);
-      return;
-    }
-
-    setAnswers(data.answers ?? []);
-    setSaving(false);
-  }
-
-  async function saveFinalAnswers() {
-    if (isSubmitted) return;
-    setSaving(true);
-    const response = await fetch(`/api/applications/${id}/answers`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        answers: answers.map((answer) => ({
-          question: answer.question,
-          final_answer: answer.final_answer,
-        })),
-      }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error ?? "Failed to save final answers");
-      setSaving(false);
-      return;
-    }
-
-    const salaryResponse = await fetch(`/api/applications/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ salary_expectation: salaryExpectation }),
-    });
-
-    const salaryData = await salaryResponse.json();
-    if (!salaryResponse.ok) {
-      setError(salaryData.error ?? "Failed to save salary expectation");
-      setSaving(false);
-      return;
-    }
-
-    setApplication(salaryData.application ?? application);
-    setAnswers(data.answers ?? []);
-    setError(null);
-    setSaving(false);
-  }
-
-  async function submitApplication() {
-    setSaving(true);
-    const salaryResponse = await fetch(`/api/applications/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ salary_expectation: salaryExpectation }),
-    });
-
-    if (!salaryResponse.ok) {
-      const salaryData = await salaryResponse.json();
-      setError(salaryData.error ?? "Failed to save salary expectation");
-      setSaving(false);
-      return;
-    }
-
-    const response = await fetch(`/api/applications/${id}/submit`, { method: "POST" });
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error ?? "Failed to submit application");
-      setSaving(false);
-      return;
-    }
-
-    setApplication(data.application ?? null);
-    setError(null);
-    setSaving(false);
-  }
-
-  async function copyText(idToCopy: string, text: string) {
-    if (!text.trim()) return;
-    await navigator.clipboard.writeText(text);
-    setCopiedId(idToCopy);
-    setTimeout(() => setCopiedId((current) => (current === idToCopy ? null : current)), 1200);
-  }
+  const isSubmitted = useMemo(() => Boolean(application?.submissionSnapshot), [application]);
 
   async function createRound(event: FormEvent) {
     event.preventDefault();
-
     const response = await fetch(`/api/applications/${id}/interview-rounds`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         round_type: roundType,
-        scheduled_at: roundDateTime ? new Date(roundDateTime).toISOString() : "",
-        notes: roundNotes,
+        scheduled_at: datetime ? new Date(datetime).toISOString() : "",
+        timezone,
+        mode,
+        location_or_link: location,
+        purpose,
       }),
     });
-
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error ?? "Failed to create interview round");
-      return;
-    }
-
-    setRounds((current) => [...current, data.round]);
-    setRoundDateTime("");
-    setRoundNotes("");
+    if (!response.ok) return setError("Failed to create round");
+    setDatetime("");
+    setLocation("");
+    setPurpose("");
+    await load();
   }
 
-  async function changeRoundStatus(roundId: string, status: InterviewRoundStatus) {
-    const response = await fetch(`/api/applications/${id}/interview-rounds/${roundId}`, {
+  async function moveToNextRound() {
+    await fetch(`/api/applications/${id}/interview-rounds`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "next" }),
+    });
+    await load();
+  }
+
+  async function createInterviewer(event: FormEvent) {
+    event.preventDefault();
+    const response = await fetch(`/api/applications/${id}/interviewers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: personName || "Unknown interviewer", title: personTitle, notes: personNotes }),
+    });
+    if (!response.ok) return;
+    setPersonName("");
+    setPersonTitle("");
+    setPersonNotes("");
+    await load();
+  }
+
+  async function toggleInterviewer(roundId: string, interviewerId: string) {
+    const current = roundPeople[roundId] ?? [];
+    const has = current.some((item) => item.id === interviewerId);
+    const nextIds = has
+      ? current.filter((item) => item.id !== interviewerId).map((item) => item.id)
+      : [...current.map((item) => item.id), interviewerId];
+
+    await fetch(`/api/applications/${id}/interview-rounds/${roundId}/interviewers`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ interviewer_ids: nextIds }),
+    });
+    await load();
+  }
+
+  async function updateRoundStatus(roundId: string, status: InterviewRoundStatus) {
+    await fetch(`/api/applications/${id}/interview-rounds/${roundId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-
-    if (!response.ok) return;
-    const data = await response.json();
-    setRounds((current) => current.map((round) => (round.id === roundId ? data.round : round)));
+    await load();
   }
 
-  async function removeRound(roundId: string) {
-    const response = await fetch(`/api/applications/${id}/interview-rounds/${roundId}`, {
-      method: "DELETE",
+  async function generatePrep(roundId: string) {
+    await fetch(`/api/applications/${id}/interview-rounds/${roundId}/prep-pack`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tone: prepTone, length: prepLength }),
     });
-
-    if (response.ok) {
-      setRounds((current) => current.filter((round) => round.id !== roundId));
-    }
+    await load();
   }
 
-  if (loading) {
-    return <main className="mx-auto max-w-5xl px-6 py-10">Loading…</main>;
+  async function pinPrep(roundId: string, artifactId: string) {
+    await fetch(`/api/applications/${id}/interview-rounds/${roundId}/prep-pack`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "pin", artifact_id: artifactId }),
+    });
+    await load();
   }
 
-  if (!application) {
-    return <main className="mx-auto max-w-5xl px-6 py-10">Application not found.</main>;
+  async function saveDebrief(roundId: string) {
+    const values = debrief[roundId] ?? {};
+    await fetch(`/api/applications/${id}/interview-rounds/${roundId}/debrief`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values),
+    });
+    await load();
   }
+
+  if (!application) return <main className="mx-auto max-w-5xl p-6">Loading…</main>;
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-5 px-6 py-10">
+    <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Application workspace</h1>
-        <div className="flex gap-2">
-          {isSubmitted && (
-            <Link href={`/applications/${application.id}/pack`} className="rounded border px-3 py-2 text-sm hover:bg-zinc-50">
-              View application pack
-            </Link>
-          )}
-          <Link href="/applications" className="rounded border px-3 py-2 text-sm hover:bg-zinc-50">
-            Back to applications
-          </Link>
+        <div>
+          <h1 className="text-2xl font-semibold">{application.company} — {application.role}</h1>
+          <p className="text-sm text-zinc-500">Interview command center</p>
         </div>
+        <Link href="/applications" className="rounded border px-3 py-2 text-sm">Back</Link>
       </div>
 
-      <section className="grid gap-4 rounded-xl border border-zinc-200 bg-white p-4 text-sm shadow-sm md:grid-cols-2">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-zinc-500">Company</p>
-          <p className="font-semibold">{application.company}</p>
-          <p className="mt-2 text-xs uppercase tracking-wide text-zinc-500">Role</p>
-          <p>{application.role}</p>
+      <section className="rounded border p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-semibold">Interview rounds timeline</h2>
+          <button className="rounded border px-2 py-1 text-xs" onClick={moveToNextRound}>Move to next round</button>
         </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-zinc-500">Pipeline status</p>
-          <p>{application.status}</p>
-          {application.submissionSnapshot && (
-            <p className="mt-2 text-emerald-700">
-              Submitted at {new Date(application.submissionSnapshot.submitted_at).toLocaleString()} (frozen)
-            </p>
-          )}
-        </div>
-      </section>
-
-      <section className="space-y-2 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-medium">Compensation</h2>
-        <input
-          className="w-full rounded-lg border border-zinc-300 p-2"
-          value={salaryExpectation}
-          onChange={(event) => setSalaryExpectation(event.target.value)}
-          disabled={isSubmitted || saving}
-          placeholder="Salary expectation (required before submit)"
-        />
-      </section>
-
-      <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Interview rounds</h2>
-          <span className="text-xs text-zinc-500">Structured timeline for this role</span>
-        </div>
-
-        <form onSubmit={createRound} className="grid gap-2 rounded-lg bg-zinc-50 p-3 md:grid-cols-4">
-          <select
-            className="rounded border border-zinc-300 p-2"
-            value={roundType}
-            onChange={(event) => setRoundType(event.target.value as InterviewRoundType)}
-          >
-            {roundTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
+        <form onSubmit={createRound} className="grid gap-2 md:grid-cols-3">
+          <select className="rounded border p-2" value={roundType} onChange={(e) => setRoundType(e.target.value as InterviewRoundType)}>
+            {roundTypes.map((type) => <option key={type} value={type}>{type}</option>)}
           </select>
-          <input
-            type="datetime-local"
-            className="rounded border border-zinc-300 p-2"
-            value={roundDateTime}
-            onChange={(event) => setRoundDateTime(event.target.value)}
-          />
-          <input
-            className="rounded border border-zinc-300 p-2 md:col-span-2"
-            placeholder="Round notes"
-            value={roundNotes}
-            onChange={(event) => setRoundNotes(event.target.value)}
-          />
-          <button className="rounded bg-zinc-900 px-3 py-2 text-sm text-white md:col-span-4" type="submit">
-            Add interview round
-          </button>
+          <input type="datetime-local" className="rounded border p-2" value={datetime} onChange={(e) => setDatetime(e.target.value)} />
+          <input className="rounded border p-2" placeholder="Timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+          <select className="rounded border p-2" value={mode} onChange={(e) => setMode(e.target.value)}>
+            <option>Zoom</option><option>Onsite</option><option>Phone</option>
+          </select>
+          <input className="rounded border p-2" placeholder="Location / meeting link" value={location} onChange={(e) => setLocation(e.target.value)} />
+          <input className="rounded border p-2" placeholder="Purpose / goals" value={purpose} onChange={(e) => setPurpose(e.target.value)} />
+          <button className="rounded bg-black px-3 py-2 text-white md:col-span-3">Add round</button>
         </form>
 
-        {rounds.length === 0 ? (
-          <p className="rounded border border-dashed p-3 text-sm text-zinc-500">No rounds yet.</p>
-        ) : (
-          rounds.map((round) => (
-            <div key={round.id} className="flex flex-wrap items-center gap-2 rounded border border-zinc-200 p-3 text-sm">
-              <p className="min-w-40 font-medium">{round.round_type}</p>
-              <p className="min-w-44 text-zinc-600">
-                {round.scheduled_at ? new Date(round.scheduled_at).toLocaleString() : "Not scheduled"}
-              </p>
-              <select
-                className="rounded border border-zinc-300 p-1"
-                value={round.status}
-                onChange={(event) => changeRoundStatus(round.id, event.target.value as InterviewRoundStatus)}
-              >
-                {roundStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-              <p className="flex-1 text-zinc-600">{round.notes || "No notes"}</p>
-              <button className="rounded border px-2 py-1 text-xs" onClick={() => removeRound(round.id)} type="button">
-                Delete
-              </button>
-            </div>
-          ))
-        )}
-      </section>
+        <div className="mt-3 space-y-3">
+          {rounds.map((round) => {
+            const prep = prepByRound[round.id] ?? [];
+            const pinned = prep.find((item) => item.pinned) ?? prep[0];
+            return (
+              <article key={round.id} className="rounded border p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium">Round {round.round_index}: {round.round_type}</p>
+                  <p className="text-sm text-zinc-600">{round.scheduled_at ? new Date(round.scheduled_at).toLocaleString() : "Date TBD"} {round.timezone || ""}</p>
+                  <select className="rounded border p-1" value={round.status} onChange={(e) => updateRoundStatus(round.id, e.target.value as InterviewRoundStatus)}>
+                    {roundStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                  </select>
+                </div>
+                <p className="text-sm text-zinc-600">Mode: {round.mode || "TBD"} · {round.location_or_link || "location TBD"}</p>
+                <p className="text-sm">Purpose: {round.purpose || "TBD"}</p>
 
-      <form onSubmit={onGenerate} className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-medium">Generate drafts</h2>
-        <select
-          className="w-full rounded-lg border border-zinc-300 p-2"
-          value={tone}
-          onChange={(event) => setTone(event.target.value)}
-          disabled={isSubmitted}
-        >
-          <option value="professional">Professional</option>
-          <option value="concise">Concise</option>
-          <option value="confident">Confident</option>
-          <option value="friendly">Friendly</option>
-        </select>
-        <textarea
-          className="min-h-36 w-full rounded-lg border border-zinc-300 p-2"
-          placeholder="Paste one or multiple application questions"
-          value={questionBlock}
-          onChange={(event) => setQuestionBlock(event.target.value)}
-          disabled={isSubmitted}
-        />
-        <button className="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-50" disabled={!canGenerate || saving || isSubmitted}>
-          {saving ? "Working…" : "Generate drafts"}
-        </button>
-      </form>
+                <div className="mt-3">
+                  <p className="text-sm font-medium">People in this round</p>
+                  <p className="text-xs text-zinc-500">{(roundPeople[round.id] ?? []).map((p) => p.name).join(", ") || "No one linked yet"}</p>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {interviewers.map((person) => (
+                      <button key={person.id} className={`rounded border px-2 py-1 text-xs ${(roundPeople[round.id] ?? []).some((r) => r.id === person.id) ? "bg-zinc-900 text-white" : ""}`} onClick={() => toggleInterviewer(round.id, person.id)} type="button">
+                        {person.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-      {error && <p className="rounded border border-red-300 bg-red-50 p-3 text-red-700">{error}</p>}
+                <div className="mt-3 rounded bg-zinc-50 p-2">
+                  <div className="mb-2 flex items-center gap-2">
+                    <select className="rounded border p-1 text-xs" value={prepTone} onChange={(e) => setPrepTone(e.target.value as "concise" | "detailed")}><option value="concise">Concise</option><option value="detailed">Detailed</option></select>
+                    <select className="rounded border p-1 text-xs" value={prepLength} onChange={(e) => setPrepLength(e.target.value as "short" | "full")}><option value="short">Short pack</option><option value="full">Full pack</option></select>
+                    <button className="rounded border px-2 py-1 text-xs" onClick={() => generatePrep(round.id)} type="button">Generate Prep Pack</button>
+                  </div>
+                  {pinned ? (
+                    <>
+                      {pinned.warning && <p className="mb-2 text-xs text-amber-700">{pinned.warning}</p>}
+                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-xs">{pinned.generated_text}</pre>
+                      <div className="mt-2 flex gap-2">
+                        {prep.map((item) => (
+                          <button key={item.id} className="rounded border px-2 py-1 text-xs" onClick={() => pinPrep(round.id, item.id)} type="button">Pin v{item.version}{item.pinned ? " ✓" : ""}</button>
+                        ))}
+                      </div>
+                    </>
+                  ) : <p className="text-xs text-zinc-500">No prep yet.</p>}
+                </div>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Question answers</h2>
-          <div className="flex gap-2">
-            <button className="rounded border px-3 py-2 text-sm" onClick={saveFinalAnswers} disabled={saving || isSubmitted}>
-              Save final answers
-            </button>
-            <button className="rounded bg-emerald-700 px-3 py-2 text-sm text-white disabled:opacity-50" onClick={submitApplication} disabled={saving || isSubmitted}>
-              Mark submitted
-            </button>
-          </div>
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-sm font-medium">Post-round debrief</summary>
+                  <div className="mt-2 grid gap-2">
+                    {[
+                      ["raw_notes", "Raw notes"],
+                      ["questions_asked", "What questions were asked?"],
+                      ["went_well", "What went well?"],
+                      ["went_badly", "What went badly?"],
+                      ["to_improve", "What to improve?"],
+                      ["follow_up_tasks", "Follow-up tasks"],
+                    ].map(([key, label]) => (
+                      <textarea key={key} className="rounded border p-2 text-sm" placeholder={label} value={debrief[round.id]?.[key] ?? ""} onChange={(e) => setDebrief((current) => ({ ...current, [round.id]: { ...(current[round.id] ?? {}), [key]: e.target.value } }))} />
+                    ))}
+                    <button className="rounded border px-2 py-1 text-xs" onClick={() => saveDebrief(round.id)} type="button">Generate summary + improvement plan</button>
+                  </div>
+                </details>
+              </article>
+            );
+          })}
         </div>
-
-        {answers.length === 0 ? (
-          <p className="rounded border p-4 text-sm text-zinc-600">No generated answers yet.</p>
-        ) : (
-          answers.map((answer) => (
-            <article key={answer.id} className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-medium">{answer.question}</h3>
-                <button
-                  className="rounded border px-3 py-1 text-xs"
-                  onClick={() => regenerateQuestion(answer.question)}
-                  type="button"
-                  disabled={isSubmitted}
-                >
-                  Regenerate
-                </button>
-              </div>
-
-              <div className="rounded bg-zinc-50 p-3">
-                <p className="mb-2 text-xs font-medium text-zinc-600">AI draft</p>
-                <div className="whitespace-pre-wrap text-sm">{answer.ai_draft}</div>
-                <button
-                  type="button"
-                  className="mt-2 rounded border px-2 py-1 text-xs"
-                  onClick={() => copyText(`${answer.id}-draft`, answer.ai_draft)}
-                  disabled={!answer.ai_draft.trim()}
-                >
-                  {copiedId === `${answer.id}-draft` ? "Copied" : "Copy draft"}
-                </button>
-              </div>
-
-              <div>
-                <p className="mb-2 text-xs font-medium text-zinc-600">Final answer</p>
-                <textarea
-                  className="min-h-28 w-full rounded-lg border border-zinc-300 p-2"
-                  value={answer.final_answer}
-                  onChange={(event) =>
-                    setAnswers((current) =>
-                      current.map((item) =>
-                        item.id === answer.id ? { ...item, final_answer: event.target.value } : item,
-                      ),
-                    )
-                  }
-                  placeholder="Edit final answer before saving"
-                  disabled={isSubmitted}
-                />
-                <button
-                  type="button"
-                  className="mt-2 rounded border px-2 py-1 text-xs"
-                  onClick={() => copyText(`${answer.id}-final`, answer.final_answer)}
-                  disabled={!answer.final_answer.trim()}
-                >
-                  {copiedId === `${answer.id}-final` ? "Copied" : "Copy final"}
-                </button>
-              </div>
-            </article>
-          ))
-        )}
       </section>
+
+      <section className="rounded border p-4">
+        <h2 className="mb-2 font-semibold">Interviewer profiles</h2>
+        <form onSubmit={createInterviewer} className="grid gap-2 md:grid-cols-3">
+          <input className="rounded border p-2" placeholder="Name (or Unknown interviewer)" value={personName} onChange={(e) => setPersonName(e.target.value)} />
+          <input className="rounded border p-2" placeholder="Title / role" value={personTitle} onChange={(e) => setPersonTitle(e.target.value)} />
+          <input className="rounded border p-2" placeholder="Notes / vibe / what to ask" value={personNotes} onChange={(e) => setPersonNotes(e.target.value)} />
+          <button className="rounded bg-black px-3 py-2 text-white md:col-span-3">Add interviewer</button>
+        </form>
+      </section>
+
+      <section className="rounded border p-4">
+        <h2 className="font-semibold">Activity</h2>
+        <ul className="mt-2 space-y-1 text-sm">
+          {activities.map((item) => (
+            <li key={item.id}>• {item.message} <span className="text-zinc-500">({new Date(item.created_at).toLocaleString()})</span></li>
+          ))}
+        </ul>
+      </section>
+
+      {isSubmitted && <p className="text-xs text-zinc-500">Submission snapshot is frozen; prep uses submitted materials.</p>}
+      {error && <p className="rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">{error}</p>}
     </main>
   );
 }

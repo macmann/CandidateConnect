@@ -7,6 +7,10 @@ function toInput(payload: Record<string, unknown>): Partial<InterviewRoundInput>
     round_type:
       payload.round_type === undefined ? undefined : (String(payload.round_type) as InterviewRoundInput["round_type"]),
     scheduled_at: payload.scheduled_at === undefined ? undefined : String(payload.scheduled_at),
+    timezone: payload.timezone === undefined ? undefined : String(payload.timezone),
+    mode: payload.mode === undefined ? undefined : (String(payload.mode) as InterviewRoundInput["mode"]),
+    location_or_link: payload.location_or_link === undefined ? undefined : String(payload.location_or_link),
+    purpose: payload.purpose === undefined ? undefined : String(payload.purpose),
     status: payload.status === undefined ? undefined : (String(payload.status) as InterviewRoundInput["status"]),
     notes: payload.notes === undefined ? undefined : String(payload.notes),
   };
@@ -28,7 +32,13 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const payload = toInput((await request.json()) as Record<string, unknown>);
+    const body = (await request.json()) as Record<string, unknown>;
+    if (body.action === "next") {
+      const round = await interviewRoundService.createNextDraft(id);
+      return NextResponse.json({ round }, { status: 201 });
+    }
+
+    const payload = toInput(body);
     const round = await interviewRoundService.create(id, payload);
     return NextResponse.json({ round }, { status: 201 });
   } catch (error) {

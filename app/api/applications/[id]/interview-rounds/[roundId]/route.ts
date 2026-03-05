@@ -7,6 +7,10 @@ function toInput(payload: Record<string, unknown>): Partial<InterviewRoundInput>
     round_type:
       payload.round_type === undefined ? undefined : (String(payload.round_type) as InterviewRoundInput["round_type"]),
     scheduled_at: payload.scheduled_at === undefined ? undefined : String(payload.scheduled_at),
+    timezone: payload.timezone === undefined ? undefined : String(payload.timezone),
+    mode: payload.mode === undefined ? undefined : (String(payload.mode) as InterviewRoundInput["mode"]),
+    location_or_link: payload.location_or_link === undefined ? undefined : String(payload.location_or_link),
+    purpose: payload.purpose === undefined ? undefined : String(payload.purpose),
     status: payload.status === undefined ? undefined : (String(payload.status) as InterviewRoundInput["status"]),
     notes: payload.notes === undefined ? undefined : String(payload.notes),
   };
