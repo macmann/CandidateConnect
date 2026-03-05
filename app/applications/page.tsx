@@ -397,12 +397,17 @@ export default function ApplicationsPage() {
                       Cover: {application.coverDocumentVersionId ? "Linked" : "—"}
                     </td>
                     <td className="px-2 py-2">
-                      <button
-                        className="rounded border px-3 py-1"
-                        onClick={() => startEdit(application)}
-                      >
-                        Edit
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          className="rounded border px-3 py-1"
+                          onClick={() => startEdit(application)}
+                        >
+                          Edit
+                        </button>
+                        <Link href={`/applications/${application.id}`} className="rounded border px-3 py-1">
+                          Answers
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

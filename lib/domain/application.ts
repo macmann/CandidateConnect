@@ -26,9 +26,14 @@ export interface ApplicationDocument {
 }
 
 export interface FieldAnswer {
-  fieldKey: string;
-  label: string;
-  answer: string;
+  id: string;
+  application_id: string;
+  question: string;
+  ai_draft: string;
+  final_answer: string;
+  snapshot_id?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SubmissionSnapshot {
