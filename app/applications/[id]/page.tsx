@@ -12,8 +12,38 @@ import {
   PrepArtifact,
 } from "@/lib/domain/application";
 
+type RoundEditableFields = {
+  scheduled_at: string;
+  timezone: string;
+  mode: string;
+  location_or_link: string;
+  purpose: string;
+  notes: string;
+  round_type: InterviewRoundType;
+};
+
 const roundTypes: InterviewRoundType[] = ["Recruiter", "Hiring Manager", "Technical", "Case", "Panel", "Final"];
 const roundStatuses: InterviewRoundStatus[] = ["Scheduled", "Completed", "Passed", "Failed", "Cancelled"];
+
+function toDatetimeLocalValue(iso?: string) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function getRoundEditableState(round: InterviewRound): RoundEditableFields {
+  return {
+    scheduled_at: toDatetimeLocalValue(round.scheduled_at),
+    timezone: round.timezone ?? "",
+    mode: round.mode ?? "",
+    location_or_link: round.location_or_link ?? "",
+    purpose: round.purpose ?? "",
+    notes: round.notes ?? "",
+    round_type: round.round_type,
+  };
+}
 
 export default function ApplicationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -42,6 +72,8 @@ export default function ApplicationDetailPage() {
   const [prepLength, setPrepLength] = useState<"short" | "full">("short");
 
   const [debrief, setDebrief] = useState<Record<string, Record<string, string>>>({});
+  const [roundEdits, setRoundEdits] = useState<Record<string, RoundEditableFields>>({});
+  const [roundSaveState, setRoundSaveState] = useState<Record<string, { saving: boolean; message?: string; error?: string }>>({});
 
   const load = useCallback(async () => {
     const [applicationRes, roundsRes, interviewerRes, activityRes] = await Promise.all([
@@ -63,6 +95,15 @@ export default function ApplicationDetailPage() {
     const activityData = await activityRes.json();
     const loadedRounds: InterviewRound[] = roundsData.rounds ?? [];
     setRounds(loadedRounds);
+    setRoundEdits((current) => {
+      const next = { ...current };
+      for (const round of loadedRounds) {
+        if (!next[round.id]) {
+          next[round.id] = getRoundEditableState(round);
+        }
+      }
+      return next;
+    });
     setInterviewers(interviewersData.interviewers ?? []);
     setActivities(activityData.activities ?? []);
 
@@ -169,6 +210,64 @@ export default function ApplicationDetailPage() {
     await load();
   }
 
+  function updateRoundEdit(roundId: string, field: keyof RoundEditableFields, value: string) {
+    setRoundEdits((current) => ({
+      ...current,
+      [roundId]: {
+        ...(current[roundId] ?? getRoundEditableState(rounds.find((round) => round.id === roundId) as InterviewRound)),
+        [field]: value,
+      },
+    }));
+    setRoundSaveState((current) => ({ ...current, [roundId]: { saving: false } }));
+  }
+
+  async function saveRoundChanges(roundId: string) {
+    const edits = roundEdits[roundId];
+    if (!edits) return;
+
+    const payload = {
+      scheduled_at: edits.scheduled_at ? new Date(edits.scheduled_at).toISOString() : "",
+      timezone: edits.timezone,
+      mode: edits.mode,
+      location_or_link: edits.location_or_link,
+      purpose: edits.purpose,
+      notes: edits.notes,
+      round_type: edits.round_type,
+    };
+
+    const previousRound = rounds.find((round) => round.id === roundId);
+
+    setRoundSaveState((current) => ({ ...current, [roundId]: { saving: true, message: "Saving changes…" } }));
+    setRounds((current) =>
+      current.map((round) =>
+        round.id === roundId ? { ...round, ...payload, scheduled_at: payload.scheduled_at || undefined } : round,
+      ),
+    );
+
+    const response = await fetch(`/api/applications/${id}/interview-rounds/${roundId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      setRoundSaveState((current) => ({
+        ...current,
+        [roundId]: { saving: false, error: "Failed to save round changes. Please retry." },
+      }));
+      if (previousRound) {
+        setRounds((current) => current.map((round) => (round.id === roundId ? previousRound : round)));
+      }
+      return;
+    }
+
+    const data = await response.json();
+    const updatedRound = data.round as InterviewRound;
+    setRounds((current) => current.map((round) => (round.id === roundId ? updatedRound : round)));
+    setRoundEdits((current) => ({ ...current, [roundId]: getRoundEditableState(updatedRound) }));
+    setRoundSaveState((current) => ({ ...current, [roundId]: { saving: false, message: "Round changes saved." } }));
+  }
+
   async function pinPrep(roundId: string, artifactId: string) {
     await fetch(`/api/applications/${id}/interview-rounds/${roundId}/prep-pack`, {
       method: "POST",
@@ -223,6 +322,8 @@ export default function ApplicationDetailPage() {
           {rounds.map((round) => {
             const prep = prepByRound[round.id] ?? [];
             const pinned = prep.find((item) => item.pinned) ?? prep[0];
+            const edit = roundEdits[round.id] ?? getRoundEditableState(round);
+            const saveState = roundSaveState[round.id];
             return (
               <article key={round.id} className="rounded border p-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -234,6 +335,68 @@ export default function ApplicationDetailPage() {
                 </div>
                 <p className="text-sm text-zinc-600">Mode: {round.mode || "TBD"} · {round.location_or_link || "location TBD"}</p>
                 <p className="text-sm">Purpose: {round.purpose || "TBD"}</p>
+
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <input
+                    type="datetime-local"
+                    className="rounded border p-2 text-sm"
+                    value={edit.scheduled_at}
+                    onChange={(e) => updateRoundEdit(round.id, "scheduled_at", e.target.value)}
+                  />
+                  <input
+                    className="rounded border p-2 text-sm"
+                    placeholder="Timezone"
+                    value={edit.timezone}
+                    onChange={(e) => updateRoundEdit(round.id, "timezone", e.target.value)}
+                  />
+                  <select
+                    className="rounded border p-2 text-sm"
+                    value={edit.mode}
+                    onChange={(e) => updateRoundEdit(round.id, "mode", e.target.value)}
+                  >
+                    <option value="">Select mode</option>
+                    <option value="Zoom">Zoom</option>
+                    <option value="Onsite">Onsite</option>
+                    <option value="Phone">Phone</option>
+                  </select>
+                  <select
+                    className="rounded border p-2 text-sm"
+                    value={edit.round_type}
+                    onChange={(e) => updateRoundEdit(round.id, "round_type", e.target.value)}
+                  >
+                    {roundTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                  <input
+                    className="rounded border p-2 text-sm md:col-span-2"
+                    placeholder="Location / meeting link"
+                    value={edit.location_or_link}
+                    onChange={(e) => updateRoundEdit(round.id, "location_or_link", e.target.value)}
+                  />
+                  <input
+                    className="rounded border p-2 text-sm md:col-span-2"
+                    placeholder="Purpose"
+                    value={edit.purpose}
+                    onChange={(e) => updateRoundEdit(round.id, "purpose", e.target.value)}
+                  />
+                  <textarea
+                    className="rounded border p-2 text-sm md:col-span-2"
+                    placeholder="Notes"
+                    value={edit.notes}
+                    onChange={(e) => updateRoundEdit(round.id, "notes", e.target.value)}
+                  />
+                  <div className="md:col-span-2">
+                    <button
+                      className="rounded bg-black px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => saveRoundChanges(round.id)}
+                      disabled={saveState?.saving}
+                      type="button"
+                    >
+                      {saveState?.saving ? "Saving…" : "Save round changes"}
+                    </button>
+                    {saveState?.message && <p className="mt-1 text-xs text-emerald-700">{saveState.message}</p>}
+                    {saveState?.error && <p className="mt-1 text-xs text-red-700">{saveState.error}</p>}
+                  </div>
+                </div>
 
                 <div className="mt-3">
                   <p className="text-sm font-medium">People in this round</p>
