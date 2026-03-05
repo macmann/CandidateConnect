@@ -19,6 +19,26 @@ export default function ApplicationDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<Record<string, "copied" | "error">>({});
+
+  const copyText = useCallback(async (key: string, text: string) => {
+    if (!text.trim()) return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyFeedback((current) => ({ ...current, [key]: "copied" }));
+    } catch {
+      setCopyFeedback((current) => ({ ...current, [key]: "error" }));
+    }
+
+    setTimeout(() => {
+      setCopyFeedback((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    }, 1800);
+  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -281,6 +301,20 @@ export default function ApplicationDetailPage() {
                 </button>
               </div>
               <div className="whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm">{answer.ai_draft}</div>
+              <div className="flex justify-end">
+                <button
+                  className="rounded border px-3 py-1 text-xs disabled:opacity-50"
+                  type="button"
+                  onClick={() => copyText(`draft-${answer.id}`, answer.ai_draft ?? "")}
+                  disabled={!answer.ai_draft?.trim()}
+                >
+                  {copyFeedback[`draft-${answer.id}`] === "copied"
+                    ? "Copied"
+                    : copyFeedback[`draft-${answer.id}`] === "error"
+                      ? "Copy failed"
+                      : "Copy draft"}
+                </button>
+              </div>
               <textarea
                 className="min-h-28 w-full rounded border p-2"
                 value={answer.final_answer}
@@ -294,6 +328,20 @@ export default function ApplicationDetailPage() {
                 placeholder="Edit final answer before saving"
                 disabled={isSubmitted}
               />
+              <div className="flex justify-end">
+                <button
+                  className="rounded border px-3 py-1 text-xs disabled:opacity-50"
+                  type="button"
+                  onClick={() => copyText(`final-${answer.id}`, answer.final_answer ?? "")}
+                  disabled={!answer.final_answer?.trim()}
+                >
+                  {copyFeedback[`final-${answer.id}`] === "copied"
+                    ? "Copied"
+                    : copyFeedback[`final-${answer.id}`] === "error"
+                      ? "Copy failed"
+                      : "Copy final"}
+                </button>
+              </div>
             </article>
           ))
         )}
