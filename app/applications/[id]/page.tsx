@@ -5,12 +5,25 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   Application,
+  DebriefArtifact,
   InterviewRound,
   InterviewRoundStatus,
   InterviewRoundType,
   Interviewer,
   PrepArtifact,
+  RoundTaskList,
 } from "@/lib/domain/application";
+
+type RoundDebriefPayload = {
+  latestArtifact: DebriefArtifact | null;
+  taskList: RoundTaskList | null;
+};
+
+type TaskListDraft = {
+  follow_up_reminder_at: string;
+  take_home_items: Array<{ id: string; text: string; completed: boolean }>;
+  new_item_text: string;
+};
 
 type RoundEditableFields = {
   scheduled_at: string;
@@ -54,6 +67,8 @@ export default function ApplicationDetailPage() {
   const [interviewers, setInterviewers] = useState<Interviewer[]>([]);
   const [roundPeople, setRoundPeople] = useState<Record<string, Interviewer[]>>({});
   const [prepByRound, setPrepByRound] = useState<Record<string, PrepArtifact[]>>({});
+  const [debriefByRound, setDebriefByRound] = useState<Record<string, RoundDebriefPayload>>({});
+  const [taskDraftByRound, setTaskDraftByRound] = useState<Record<string, TaskListDraft>>({});
   const [activities, setActivities] = useState<Array<{ id: string; message: string; created_at: string }>>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -111,21 +126,41 @@ export default function ApplicationDetailPage() {
 
     const people: Record<string, Interviewer[]> = {};
     const preps: Record<string, PrepArtifact[]> = {};
+    const debriefs: Record<string, RoundDebriefPayload> = {};
     await Promise.all(
       loadedRounds.map(async (round) => {
-        const [peopleRes, prepRes] = await Promise.all([
+        const [peopleRes, prepRes, debriefRes] = await Promise.all([
           fetch(`/api/applications/${id}/interview-rounds/${round.id}/interviewers`, { cache: "no-store" }),
           fetch(`/api/applications/${id}/interview-rounds/${round.id}/prep-pack`, { cache: "no-store" }),
+          fetch(`/api/applications/${id}/interview-rounds/${round.id}/debrief`, { cache: "no-store" }),
         ]);
         const peopleData = await peopleRes.json();
         const prepData = await prepRes.json();
+        const debriefData = await debriefRes.json();
         people[round.id] = peopleData.interviewers ?? [];
         preps[round.id] = prepData.artifacts ?? [];
+        debriefs[round.id] = {
+          latestArtifact: debriefData.latestArtifact ?? null,
+          taskList: debriefData.taskList ?? null,
+        };
       }),
     );
 
     setRoundPeople(people);
     setPrepByRound(preps);
+    setDebriefByRound(debriefs);
+    setTaskDraftByRound((current) => {
+      const next = { ...current };
+      for (const round of loadedRounds) {
+        const taskList = debriefs[round.id]?.taskList;
+        next[round.id] = {
+          follow_up_reminder_at: toDatetimeLocalValue(taskList?.follow_up_reminder_at),
+          take_home_items: taskList?.take_home_items ?? [],
+          new_item_text: current[round.id]?.new_item_text ?? "",
+        };
+      }
+      return next;
+    });
     setError(null);
   }, [id]);
 
@@ -297,6 +332,55 @@ export default function ApplicationDetailPage() {
     await load();
   }
 
+  function updateTaskDraft(roundId: string, updater: (draft: TaskListDraft) => TaskListDraft) {
+    setTaskDraftByRound((current) => {
+      const existing =
+        current[roundId] ?? {
+          follow_up_reminder_at: "",
+          take_home_items: [],
+          new_item_text: "",
+        };
+      return { ...current, [roundId]: updater(existing) };
+    });
+  }
+
+  function addChecklistItem(roundId: string) {
+    updateTaskDraft(roundId, (draft) => {
+      const text = draft.new_item_text.trim();
+      if (!text) return draft;
+      return {
+        ...draft,
+        take_home_items: [...draft.take_home_items, { id: crypto.randomUUID(), text, completed: false }],
+        new_item_text: "",
+      };
+    });
+  }
+
+  async function saveTaskList(roundId: string) {
+    const draft = taskDraftByRound[roundId] ?? {
+      follow_up_reminder_at: "",
+      take_home_items: [],
+      new_item_text: "",
+    };
+    await fetch(`/api/applications/${id}/interview-rounds/${roundId}/debrief`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        follow_up_reminder_at: draft.follow_up_reminder_at ? new Date(draft.follow_up_reminder_at).toISOString() : "",
+        take_home_items: draft.take_home_items,
+      }),
+    });
+    await load();
+  }
+
+  async function copyText(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      setError("Could not copy to clipboard.");
+    }
+  }
+
   if (!application) return <main className="mx-auto max-w-5xl p-6">Loading…</main>;
 
   return (
@@ -334,6 +418,14 @@ export default function ApplicationDetailPage() {
             const pinned = prep.find((item) => item.pinned) ?? prep[0];
             const edit = roundEdits[round.id] ?? getRoundEditableState(round);
             const saveState = roundSaveState[round.id];
+            const latestDebriefArtifact = debriefByRound[round.id]?.latestArtifact;
+            const taskDraft =
+              taskDraftByRound[round.id] ??
+              {
+                follow_up_reminder_at: "",
+                take_home_items: [],
+                new_item_text: "",
+              };
             return (
               <article key={round.id} className="rounded border p-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -459,6 +551,79 @@ export default function ApplicationDetailPage() {
                       <textarea key={key} className="rounded border p-2 text-sm" placeholder={label} value={debrief[round.id]?.[key] ?? ""} onChange={(e) => setDebrief((current) => ({ ...current, [round.id]: { ...(current[round.id] ?? {}), [key]: e.target.value } }))} />
                     ))}
                     <button className="rounded border px-2 py-1 text-xs" onClick={() => saveDebrief(round.id)} type="button">Generate summary + improvement plan</button>
+
+                    {latestDebriefArtifact ? (
+                      <div className="rounded border bg-zinc-50 p-3 text-sm">
+                        <p className="font-medium">Latest debrief artifact</p>
+                        <p className="mt-2 text-xs font-semibold uppercase text-zinc-500">Summary</p>
+                        <p>{latestDebriefArtifact.generated_summary}</p>
+                        <p className="mt-2 text-xs font-semibold uppercase text-zinc-500">Improvements</p>
+                        <p>{latestDebriefArtifact.improvements}</p>
+                        <p className="mt-2 text-xs font-semibold uppercase text-zinc-500">Next-round focus</p>
+                        <p>{latestDebriefArtifact.next_round_focus}</p>
+                        <div className="mt-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold uppercase text-zinc-500">Thank-you email draft</p>
+                            <button className="rounded border px-2 py-1 text-xs" type="button" onClick={() => copyText(latestDebriefArtifact.thank_you_email)}>Copy</button>
+                          </div>
+                          <pre className="mt-1 whitespace-pre-wrap rounded border bg-white p-2 text-xs">{latestDebriefArtifact.thank_you_email}</pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-zinc-500">No generated debrief artifact yet.</p>
+                    )}
+
+                    <div className="rounded border p-3">
+                      <p className="text-sm font-medium">Post-round task tracker</p>
+                      <label className="mt-2 block text-xs font-medium text-zinc-600">Follow-up email reminder</label>
+                      <input
+                        type="datetime-local"
+                        className="mt-1 rounded border p-2 text-sm"
+                        value={taskDraft.follow_up_reminder_at}
+                        onChange={(event) =>
+                          updateTaskDraft(round.id, (draft) => ({ ...draft, follow_up_reminder_at: event.target.value }))
+                        }
+                      />
+
+                      <p className="mt-3 text-xs font-medium text-zinc-600">Take-home assignment checklist</p>
+                      <div className="mt-1 space-y-2">
+                        {taskDraft.take_home_items.map((item) => (
+                          <label key={item.id} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={item.completed}
+                              onChange={(event) =>
+                                updateTaskDraft(round.id, (draft) => ({
+                                  ...draft,
+                                  take_home_items: draft.take_home_items.map((draftItem) =>
+                                    draftItem.id === item.id ? { ...draftItem, completed: event.target.checked } : draftItem,
+                                  ),
+                                }))
+                              }
+                            />
+                            <span className={item.completed ? "line-through text-zinc-500" : ""}>{item.text}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          className="flex-1 rounded border p-2 text-sm"
+                          placeholder="Add checklist item"
+                          value={taskDraft.new_item_text}
+                          onChange={(event) =>
+                            updateTaskDraft(round.id, (draft) => ({ ...draft, new_item_text: event.target.value }))
+                          }
+                        />
+                        <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => addChecklistItem(round.id)}>
+                          Add
+                        </button>
+                      </div>
+
+                      <button type="button" className="mt-3 rounded border px-2 py-1 text-xs" onClick={() => saveTaskList(round.id)}>
+                        Save post-round tasks
+                      </button>
+                    </div>
                   </div>
                 </details>
               </article>

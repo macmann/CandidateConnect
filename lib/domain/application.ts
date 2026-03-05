@@ -86,6 +86,21 @@ export interface DebriefArtifact {
   created_at: string;
 }
 
+export interface TakeHomeChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface RoundTaskList {
+  id: string;
+  round_id: string;
+  follow_up_reminder_at?: string;
+  take_home_items: TakeHomeChecklistItem[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface JobDescriptionSnapshot {
   title: string;
   company: string;
