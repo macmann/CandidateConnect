@@ -8,6 +8,12 @@ export function Header() {
           Scaffold
         </Link>
         <nav className="flex items-center gap-4 text-sm">
+          <Link className="text-neutral-700 hover:text-neutral-900" href="/applications">
+            Applications
+          </Link>
+          <Link className="text-neutral-700 hover:text-neutral-900" href="/documents">
+            Documents
+          </Link>
           <Link className="text-neutral-700 hover:text-neutral-900" href="/insights">
             Insights
           </Link>

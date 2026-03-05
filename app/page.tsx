@@ -21,6 +21,18 @@ export default function HomePage() {
         >
           View Insights
         </Link>
+        <Link
+          href="/applications"
+          className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+        >
+          Track Applications
+        </Link>
+        <Link
+          href="/documents"
+          className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500"
+        >
+          Manage Documents
+        </Link>
         <a
           href="https://nextjs.org/docs"
           className="rounded-xl border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"

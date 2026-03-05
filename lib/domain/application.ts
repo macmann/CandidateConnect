@@ -1,5 +1,7 @@
 export type ApplicationStatus = "Saved" | "Applied" | "Interview" | "Offer" | "Rejected";
 
+export type DocumentType = "CV" | "Cover";
+
 export interface JobDescriptionSnapshot {
   title: string;
   company: string;
@@ -11,16 +13,16 @@ export interface JobDescriptionSnapshot {
 
 export interface DocumentVersion {
   id: string;
+  type: DocumentType;
   label: string;
-  content: string;
+  fileUrl?: string;
+  text?: string;
   createdAt: string;
 }
 
 export interface ApplicationDocument {
-  id: string;
-  type: "resume" | "coverLetter" | "portfolio" | "other";
-  currentVersionId: string;
-  versions: DocumentVersion[];
+  applicationId: string;
+  documentVersionId: string;
 }
 
 export interface FieldAnswer {
@@ -42,9 +44,10 @@ export interface Application {
   candidateEmail: string;
   status: ApplicationStatus;
   jobDescription: JobDescriptionSnapshot;
-  documents: ApplicationDocument[];
   fieldAnswers: FieldAnswer[];
   submissionSnapshot?: SubmissionSnapshot;
+  cvDocumentVersionId?: string;
+  coverDocumentVersionId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -57,8 +60,9 @@ export interface ApplicationInput {
     capturedAt?: string;
   };
   fieldAnswers?: FieldAnswer[];
-  documents?: ApplicationDocument[];
   submissionSnapshot?: SubmissionSnapshot;
+  cvDocumentVersionId?: string;
+  coverDocumentVersionId?: string;
 }
 
 export const APPLICATION_STATUS_FLOW: Record<ApplicationStatus, ApplicationStatus[]> = {

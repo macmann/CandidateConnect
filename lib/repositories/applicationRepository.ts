@@ -7,6 +7,7 @@ import {
   ApplicationInput,
   ApplicationStatus,
 } from "@/lib/domain/application";
+import { documentRepository } from "@/lib/repositories/documentRepository";
 
 interface ApplicationStore {
   applications: Application[];
@@ -59,9 +60,10 @@ function createApplication(input: ApplicationInput): Application {
       ...input.jobDescription,
       capturedAt: input.jobDescription.capturedAt ?? timestamp,
     },
-    documents: input.documents ?? [],
     fieldAnswers: input.fieldAnswers ?? [],
     submissionSnapshot: input.submissionSnapshot,
+    cvDocumentVersionId: input.cvDocumentVersionId,
+    coverDocumentVersionId: input.coverDocumentVersionId,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -81,23 +83,37 @@ function mergeApplication(existing: Application, patch: Partial<ApplicationInput
         }
       : existing.jobDescription,
     fieldAnswers: patch.fieldAnswers ?? existing.fieldAnswers,
-    documents: patch.documents ?? existing.documents,
     submissionSnapshot: patch.submissionSnapshot ?? existing.submissionSnapshot,
+    cvDocumentVersionId: patch.cvDocumentVersionId ?? existing.cvDocumentVersionId,
+    coverDocumentVersionId: patch.coverDocumentVersionId ?? existing.coverDocumentVersionId,
     updatedAt: nowIso(),
   };
 
   return updated;
 }
 
+async function hydrateSelection(application: Application): Promise<Application> {
+  const selected = await documentRepository.getSelectedVersionIds(application.id);
+  return {
+    ...application,
+    cvDocumentVersionId: selected.cvDocumentVersionId ?? application.cvDocumentVersionId,
+    coverDocumentVersionId: selected.coverDocumentVersionId ?? application.coverDocumentVersionId,
+  };
+}
+
 export class ApplicationRepository {
   async list(): Promise<Application[]> {
     const store = await readStore();
-    return store.applications.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const hydrated = await Promise.all(
+      store.applications.map((application) => hydrateSelection(application)),
+    );
+    return hydrated.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
   async getById(id: string): Promise<Application | null> {
     const store = await readStore();
-    return store.applications.find((app) => app.id === id) ?? null;
+    const application = store.applications.find((app) => app.id === id);
+    return application ? hydrateSelection(application) : null;
   }
 
   async create(input: ApplicationInput): Promise<Application> {
@@ -105,7 +121,13 @@ export class ApplicationRepository {
     const application = createApplication(input);
     store.applications.push(application);
     await writeStore(store);
-    return application;
+
+    await documentRepository.setForApplication(
+      application.id,
+      [input.cvDocumentVersionId, input.coverDocumentVersionId].filter(Boolean) as string[],
+    );
+
+    return hydrateSelection(application);
   }
 
   async update(id: string, patch: Partial<ApplicationInput>): Promise<Application | null> {
@@ -118,7 +140,13 @@ export class ApplicationRepository {
     const updated = mergeApplication(current, patch);
     store.applications[index] = updated;
     await writeStore(store);
-    return updated;
+
+    await documentRepository.setForApplication(
+      id,
+      [updated.cvDocumentVersionId, updated.coverDocumentVersionId].filter(Boolean) as string[],
+    );
+
+    return hydrateSelection(updated);
   }
 
   async transitionStatus(id: string, nextStatus: ApplicationStatus): Promise<Application | null> {
