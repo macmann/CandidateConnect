@@ -2,5 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+body {
+  overflow: hidden;
+}
+
 /* Basic typography defaults for MDX content */
-.prose a { text-decoration: underline; }
+.prose a {
+  text-decoration: underline;
+}
