@@ -12,7 +12,7 @@ import {
 } from "@/lib/domain/application";
 import { JobDescriptionSnapshot } from "@/lib/domain/jobDescriptionSnapshot";
 
-const interviewRoundTypes: InterviewRoundType[] = [
+const roundTypes: InterviewRoundType[] = [
   "Recruiter Screen",
   "Hiring Manager",
   "Technical",
@@ -23,14 +23,7 @@ const interviewRoundTypes: InterviewRoundType[] = [
   "Other",
 ];
 
-const interviewStatuses: InterviewRoundStatus[] = ["Planned", "Scheduled", "Completed", "Cancelled"];
-
-const emptyRoundForm = {
-  round_type: "Recruiter Screen" as InterviewRoundType,
-  scheduled_at: "",
-  status: "Planned" as InterviewRoundStatus,
-  notes: "",
-};
+const roundStatuses: InterviewRoundStatus[] = ["Planned", "Scheduled", "Completed", "Cancelled"];
 
 export default function ApplicationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -40,34 +33,16 @@ export default function ApplicationDetailPage() {
   const [snapshot, setSnapshot] = useState<JobDescriptionSnapshot | null>(null);
   const [answers, setAnswers] = useState<FieldAnswer[]>([]);
   const [rounds, setRounds] = useState<InterviewRound[]>([]);
-  const [editingRoundId, setEditingRoundId] = useState<string | null>(null);
-  const [roundForm, setRoundForm] = useState(emptyRoundForm);
   const [questionBlock, setQuestionBlock] = useState("");
   const [tone, setTone] = useState("professional");
   const [salaryExpectation, setSalaryExpectation] = useState("");
+  const [roundType, setRoundType] = useState<InterviewRoundType>("Recruiter Screen");
+  const [roundDateTime, setRoundDateTime] = useState("");
+  const [roundNotes, setRoundNotes] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copyFeedback, setCopyFeedback] = useState<Record<string, "copied" | "error">>({});
-
-  const copyText = useCallback(async (key: string, text: string) => {
-    if (!text.trim()) return;
-
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopyFeedback((current) => ({ ...current, [key]: "copied" }));
-    } catch {
-      setCopyFeedback((current) => ({ ...current, [key]: "error" }));
-    }
-
-    setTimeout(() => {
-      setCopyFeedback((current) => {
-        const next = { ...current };
-        delete next[key];
-        return next;
-      });
-    }, 1800);
-  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -87,7 +62,7 @@ export default function ApplicationDetailPage() {
     }
 
     setApplication(applicationData.application ?? null);
-    setSalaryExpectation(applicationData.application?.salaryExpectation ?? "");
+    setSalaryExpectation(applicationData.application?.salary_expectation ?? "");
 
     if (snapshotRes.ok) {
       const snapshotData = await snapshotRes.json();
@@ -192,7 +167,7 @@ export default function ApplicationDetailPage() {
     const salaryResponse = await fetch(`/api/applications/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ salaryExpectation }),
+      body: JSON.stringify({ salary_expectation: salaryExpectation }),
     });
 
     const salaryData = await salaryResponse.json();
@@ -213,7 +188,7 @@ export default function ApplicationDetailPage() {
     const salaryResponse = await fetch(`/api/applications/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ salaryExpectation }),
+      body: JSON.stringify({ salary_expectation: salaryExpectation }),
     });
 
     if (!salaryResponse.ok) {
@@ -236,46 +211,47 @@ export default function ApplicationDetailPage() {
     setSaving(false);
   }
 
-  async function saveRound(event: FormEvent) {
+  async function copyText(idToCopy: string, text: string) {
+    if (!text.trim()) return;
+    await navigator.clipboard.writeText(text);
+    setCopiedId(idToCopy);
+    setTimeout(() => setCopiedId((current) => (current === idToCopy ? null : current)), 1200);
+  }
+
+  async function createRound(event: FormEvent) {
     event.preventDefault();
 
-    const payload = {
-      round_type: roundForm.round_type,
-      scheduled_at: roundForm.scheduled_at ? new Date(roundForm.scheduled_at).toISOString() : "",
-      status: roundForm.status,
-      notes: roundForm.notes,
-    };
-
-    const response = await fetch(
-      editingRoundId
-        ? `/api/applications/${id}/interview-rounds/${editingRoundId}`
-        : `/api/applications/${id}/interview-rounds`,
-      {
-        method: editingRoundId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      },
-    );
+    const response = await fetch(`/api/applications/${id}/interview-rounds`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        round_type: roundType,
+        scheduled_at: roundDateTime ? new Date(roundDateTime).toISOString() : "",
+        notes: roundNotes,
+      }),
+    });
 
     const data = await response.json();
     if (!response.ok) {
-      setError(data.error ?? "Failed to save interview round");
+      setError(data.error ?? "Failed to create interview round");
       return;
     }
 
-    await loadAll();
-    setRoundForm(emptyRoundForm);
-    setEditingRoundId(null);
+    setRounds((current) => [...current, data.round]);
+    setRoundDateTime("");
+    setRoundNotes("");
   }
 
-  function startEditRound(round: InterviewRound) {
-    setEditingRoundId(round.id);
-    setRoundForm({
-      round_type: round.round_type,
-      scheduled_at: round.scheduled_at ? round.scheduled_at.slice(0, 16) : "",
-      status: round.status,
-      notes: round.notes,
+  async function changeRoundStatus(roundId: string, status: InterviewRoundStatus) {
+    const response = await fetch(`/api/applications/${id}/interview-rounds/${roundId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
     });
+
+    if (!response.ok) return;
+    const data = await response.json();
+    setRounds((current) => current.map((round) => (round.id === roundId ? data.round : round)));
   }
 
   async function removeRound(roundId: string) {
@@ -283,13 +259,9 @@ export default function ApplicationDetailPage() {
       method: "DELETE",
     });
 
-    if (!response.ok) {
-      const data = await response.json();
-      setError(data.error ?? "Failed to delete interview round");
-      return;
+    if (response.ok) {
+      setRounds((current) => current.filter((round) => round.id !== roundId));
     }
-
-    await loadAll();
   }
 
   if (loading) {
@@ -303,124 +275,41 @@ export default function ApplicationDetailPage() {
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-5 px-6 py-10">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Application answer workflow</h1>
+        <h1 className="text-2xl font-semibold">Application workspace</h1>
         <div className="flex gap-2">
           {isSubmitted && (
-            <Link href={`/applications/${application.id}/pack`} className="rounded border px-3 py-2 text-sm">
+            <Link href={`/applications/${application.id}/pack`} className="rounded border px-3 py-2 text-sm hover:bg-zinc-50">
               View application pack
             </Link>
           )}
-          <Link href="/applications" className="rounded border px-3 py-2 text-sm">
+          <Link href="/applications" className="rounded border px-3 py-2 text-sm hover:bg-zinc-50">
             Back to applications
           </Link>
         </div>
       </div>
 
-      <section className="rounded border p-4 text-sm">
-        <p className="font-medium">{application.candidateName}</p>
-        <p className="text-zinc-600">
-          {application.jobDescription.title} at {application.jobDescription.company}
-        </p>
-        {application.submissionSnapshot && (
-          <p className="mt-1 text-emerald-700">
-            Submitted at {new Date(application.submissionSnapshot.submitted_at).toLocaleString()} (frozen)
-          </p>
-        )}
+      <section className="grid gap-4 rounded-xl border border-zinc-200 bg-white p-4 text-sm shadow-sm md:grid-cols-2">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-zinc-500">Company</p>
+          <p className="font-semibold">{application.company}</p>
+          <p className="mt-2 text-xs uppercase tracking-wide text-zinc-500">Role</p>
+          <p>{application.role}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-zinc-500">Pipeline status</p>
+          <p>{application.status}</p>
+          {application.submissionSnapshot && (
+            <p className="mt-2 text-emerald-700">
+              Submitted at {new Date(application.submissionSnapshot.submitted_at).toLocaleString()} (frozen)
+            </p>
+          )}
+        </div>
       </section>
 
-      <section className="rounded border p-4">
-        <h2 className="text-lg font-medium">Interview progression</h2>
-        {rounds.length === 0 ? (
-          <p className="mt-2 text-sm text-zinc-600">No interview rounds tracked yet.</p>
-        ) : (
-          <ol className="mt-3 space-y-2 border-l pl-4">
-            {rounds.map((round) => (
-              <li key={round.id} className="relative rounded border p-3 text-sm">
-                <span className="absolute -left-[22px] top-4 h-2.5 w-2.5 rounded-full bg-black" />
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium">{round.round_type}</p>
-                  <p className="text-xs text-zinc-600">{round.status}</p>
-                </div>
-                <p className="mt-1 text-xs text-zinc-600">
-                  {round.scheduled_at ? new Date(round.scheduled_at).toLocaleString() : "Not scheduled"}
-                </p>
-                {round.notes && <p className="mt-2 whitespace-pre-wrap">{round.notes}</p>}
-                <div className="mt-2 flex gap-2">
-                  <button className="rounded border px-2 py-1 text-xs" type="button" onClick={() => startEditRound(round)}>
-                    Edit
-                  </button>
-                  <button
-                    className="rounded border border-red-300 px-2 py-1 text-xs text-red-700"
-                    type="button"
-                    onClick={() => removeRound(round.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-
-        <form onSubmit={saveRound} className="mt-4 grid gap-2 rounded border p-3 md:grid-cols-2">
-          <select
-            className="rounded border p-2"
-            value={roundForm.round_type}
-            onChange={(event) => setRoundForm((current) => ({ ...current, round_type: event.target.value as InterviewRoundType }))}
-          >
-            {interviewRoundTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-          <select
-            className="rounded border p-2"
-            value={roundForm.status}
-            onChange={(event) => setRoundForm((current) => ({ ...current, status: event.target.value as InterviewRoundStatus }))}
-          >
-            {interviewStatuses.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-          <input
-            type="datetime-local"
-            className="rounded border p-2"
-            value={roundForm.scheduled_at}
-            onChange={(event) => setRoundForm((current) => ({ ...current, scheduled_at: event.target.value }))}
-          />
-          <input
-            className="rounded border p-2"
-            placeholder="Round notes"
-            value={roundForm.notes}
-            onChange={(event) => setRoundForm((current) => ({ ...current, notes: event.target.value }))}
-          />
-          <div className="md:col-span-2 flex gap-2">
-            <button type="submit" className="rounded bg-black px-3 py-2 text-sm text-white">
-              {editingRoundId ? "Update round" : "Add round"}
-            </button>
-            {editingRoundId && (
-              <button
-                type="button"
-                className="rounded border px-3 py-2 text-sm"
-                onClick={() => {
-                  setEditingRoundId(null);
-                  setRoundForm(emptyRoundForm);
-                }}
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-        </form>
-      </section>
-
-      <section className="space-y-2 rounded border p-4">
+      <section className="space-y-2 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-medium">Compensation</h2>
         <input
-          className="w-full rounded border p-2"
+          className="w-full rounded-lg border border-zinc-300 p-2"
           value={salaryExpectation}
           onChange={(event) => setSalaryExpectation(event.target.value)}
           disabled={isSubmitted || saving}
@@ -428,23 +317,91 @@ export default function ApplicationDetailPage() {
         />
       </section>
 
-      <form onSubmit={onGenerate} className="space-y-3 rounded border p-4">
+      <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium">Interview rounds</h2>
+          <span className="text-xs text-zinc-500">Structured timeline for this role</span>
+        </div>
+
+        <form onSubmit={createRound} className="grid gap-2 rounded-lg bg-zinc-50 p-3 md:grid-cols-4">
+          <select
+            className="rounded border border-zinc-300 p-2"
+            value={roundType}
+            onChange={(event) => setRoundType(event.target.value as InterviewRoundType)}
+          >
+            {roundTypes.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+          <input
+            type="datetime-local"
+            className="rounded border border-zinc-300 p-2"
+            value={roundDateTime}
+            onChange={(event) => setRoundDateTime(event.target.value)}
+          />
+          <input
+            className="rounded border border-zinc-300 p-2 md:col-span-2"
+            placeholder="Round notes"
+            value={roundNotes}
+            onChange={(event) => setRoundNotes(event.target.value)}
+          />
+          <button className="rounded bg-zinc-900 px-3 py-2 text-sm text-white md:col-span-4" type="submit">
+            Add interview round
+          </button>
+        </form>
+
+        {rounds.length === 0 ? (
+          <p className="rounded border border-dashed p-3 text-sm text-zinc-500">No rounds yet.</p>
+        ) : (
+          rounds.map((round) => (
+            <div key={round.id} className="flex flex-wrap items-center gap-2 rounded border border-zinc-200 p-3 text-sm">
+              <p className="min-w-40 font-medium">{round.round_type}</p>
+              <p className="min-w-44 text-zinc-600">
+                {round.scheduled_at ? new Date(round.scheduled_at).toLocaleString() : "Not scheduled"}
+              </p>
+              <select
+                className="rounded border border-zinc-300 p-1"
+                value={round.status}
+                onChange={(event) => changeRoundStatus(round.id, event.target.value as InterviewRoundStatus)}
+              >
+                {roundStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+              <p className="flex-1 text-zinc-600">{round.notes || "No notes"}</p>
+              <button className="rounded border px-2 py-1 text-xs" onClick={() => removeRound(round.id)} type="button">
+                Delete
+              </button>
+            </div>
+          ))
+        )}
+      </section>
+
+      <form onSubmit={onGenerate} className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-medium">Generate drafts</h2>
-        <input
-          className="w-full rounded border p-2"
+        <select
+          className="w-full rounded-lg border border-zinc-300 p-2"
           value={tone}
           onChange={(event) => setTone(event.target.value)}
-          placeholder="Tone (e.g. professional, concise, confident)"
           disabled={isSubmitted}
-        />
+        >
+          <option value="professional">Professional</option>
+          <option value="concise">Concise</option>
+          <option value="confident">Confident</option>
+          <option value="friendly">Friendly</option>
+        </select>
         <textarea
-          className="min-h-36 w-full rounded border p-2"
+          className="min-h-36 w-full rounded-lg border border-zinc-300 p-2"
           placeholder="Paste one or multiple application questions"
           value={questionBlock}
           onChange={(event) => setQuestionBlock(event.target.value)}
           disabled={isSubmitted}
         />
-        <button className="rounded bg-black px-4 py-2 text-white disabled:opacity-50" disabled={!canGenerate || saving || isSubmitted}>
+        <button className="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-50" disabled={!canGenerate || saving || isSubmitted}>
           {saving ? "Working…" : "Generate drafts"}
         </button>
       </form>
@@ -459,7 +416,7 @@ export default function ApplicationDetailPage() {
               Save final answers
             </button>
             <button className="rounded bg-emerald-700 px-3 py-2 text-sm text-white disabled:opacity-50" onClick={submitApplication} disabled={saving || isSubmitted}>
-              Submit application
+              Mark submitted
             </button>
           </div>
         </div>
@@ -468,7 +425,7 @@ export default function ApplicationDetailPage() {
           <p className="rounded border p-4 text-sm text-zinc-600">No generated answers yet.</p>
         ) : (
           answers.map((answer) => (
-            <article key={answer.id} className="space-y-2 rounded border p-4">
+            <article key={answer.id} className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-medium">{answer.question}</h3>
                 <button
@@ -480,46 +437,42 @@ export default function ApplicationDetailPage() {
                   Regenerate
                 </button>
               </div>
-              <div className="whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm">{answer.ai_draft}</div>
-              <div className="flex justify-end">
+
+              <div className="rounded bg-zinc-50 p-3">
+                <p className="mb-2 text-xs font-medium text-zinc-600">AI draft</p>
+                <div className="whitespace-pre-wrap text-sm">{answer.ai_draft}</div>
                 <button
-                  className="rounded border px-3 py-1 text-xs disabled:opacity-50"
                   type="button"
-                  onClick={() => copyText(`draft-${answer.id}`, answer.ai_draft ?? "")}
-                  disabled={!answer.ai_draft?.trim()}
+                  className="mt-2 rounded border px-2 py-1 text-xs"
+                  onClick={() => copyText(`${answer.id}-draft`, answer.ai_draft)}
+                  disabled={!answer.ai_draft.trim()}
                 >
-                  {copyFeedback[`draft-${answer.id}`] === "copied"
-                    ? "Copied"
-                    : copyFeedback[`draft-${answer.id}`] === "error"
-                      ? "Copy failed"
-                      : "Copy draft"}
+                  {copiedId === `${answer.id}-draft` ? "Copied" : "Copy draft"}
                 </button>
               </div>
-              <textarea
-                className="min-h-28 w-full rounded border p-2"
-                value={answer.final_answer}
-                onChange={(event) =>
-                  setAnswers((current) =>
-                    current.map((item) =>
-                      item.id === answer.id ? { ...item, final_answer: event.target.value } : item,
-                    ),
-                  )
-                }
-                placeholder="Edit final answer before saving"
-                disabled={isSubmitted}
-              />
-              <div className="flex justify-end">
+
+              <div>
+                <p className="mb-2 text-xs font-medium text-zinc-600">Final answer</p>
+                <textarea
+                  className="min-h-28 w-full rounded-lg border border-zinc-300 p-2"
+                  value={answer.final_answer}
+                  onChange={(event) =>
+                    setAnswers((current) =>
+                      current.map((item) =>
+                        item.id === answer.id ? { ...item, final_answer: event.target.value } : item,
+                      ),
+                    )
+                  }
+                  placeholder="Edit final answer before saving"
+                  disabled={isSubmitted}
+                />
                 <button
-                  className="rounded border px-3 py-1 text-xs disabled:opacity-50"
                   type="button"
-                  onClick={() => copyText(`final-${answer.id}`, answer.final_answer ?? "")}
-                  disabled={!answer.final_answer?.trim()}
+                  className="mt-2 rounded border px-2 py-1 text-xs"
+                  onClick={() => copyText(`${answer.id}-final`, answer.final_answer)}
+                  disabled={!answer.final_answer.trim()}
                 >
-                  {copyFeedback[`final-${answer.id}`] === "copied"
-                    ? "Copied"
-                    : copyFeedback[`final-${answer.id}`] === "error"
-                      ? "Copy failed"
-                      : "Copy final"}
+                  {copiedId === `${answer.id}-final` ? "Copied" : "Copy final"}
                 </button>
               </div>
             </article>
