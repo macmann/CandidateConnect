@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Application, ApplicationStatus } from "@/lib/domain/application";
+import Link from "next/link";
+import { Application, ApplicationStatus, DocumentVersion } from "@/lib/domain/application";
 import { JobDescriptionSnapshot } from "@/lib/domain/jobDescriptionSnapshot";
 
 type SortKey = "candidateName" | "company" | "status" | "updatedAt";
@@ -17,10 +18,13 @@ const emptyForm = {
   description: "",
   sourceUrl: "",
   jdRawText: "",
+  cvDocumentVersionId: "",
+  coverDocumentVersionId: "",
 };
 
 export default function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
+  const [documentVersions, setDocumentVersions] = useState<DocumentVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -44,6 +48,14 @@ export default function ApplicationsPage() {
     setApplications(data.applications ?? []);
     setError(null);
     setLoading(false);
+  }
+
+  async function loadDocumentVersions() {
+    const response = await fetch("/api/document-versions", { cache: "no-store" });
+    const data = await response.json();
+    if (response.ok) {
+      setDocumentVersions(data.versions ?? []);
+    }
   }
 
   async function loadSnapshot(applicationId: string) {
@@ -72,6 +84,7 @@ export default function ApplicationsPage() {
 
   useEffect(() => {
     loadApplications();
+    loadDocumentVersions();
   }, []);
 
   const sorted = useMemo(() => {
@@ -103,6 +116,15 @@ export default function ApplicationsPage() {
     );
   }, [applications]);
 
+  const cvVersions = useMemo(
+    () => documentVersions.filter((version) => version.type === "CV"),
+    [documentVersions],
+  );
+  const coverVersions = useMemo(
+    () => documentVersions.filter((version) => version.type === "Cover"),
+    [documentVersions],
+  );
+
   async function startEdit(application: Application) {
     setEditingId(application.id);
     setForm({
@@ -114,6 +136,8 @@ export default function ApplicationsPage() {
       description: application.jobDescription.description,
       sourceUrl: application.jobDescription.sourceUrl ?? "",
       jdRawText: "",
+      cvDocumentVersionId: application.cvDocumentVersionId ?? "",
+      coverDocumentVersionId: application.coverDocumentVersionId ?? "",
     });
 
     await loadSnapshot(application.id);
@@ -131,6 +155,8 @@ export default function ApplicationsPage() {
         description: form.description,
         sourceUrl: form.sourceUrl,
       },
+      cvDocumentVersionId: form.cvDocumentVersionId || undefined,
+      coverDocumentVersionId: form.coverDocumentVersionId || undefined,
     };
 
     const response = await fetch(
@@ -192,11 +218,16 @@ export default function ApplicationsPage() {
 
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10">
-      <h1 className="text-3xl font-semibold">Applications</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-semibold">Applications</h1>
+        <Link href="/documents" className="rounded border px-3 py-2 text-sm">
+          Manage document versions
+        </Link>
+      </div>
 
-      <form onSubmit={onSubmit} className="grid gap-3 rounded border border-zinc-200 p-4">
+      <form onSubmit={onSubmit} className="space-y-3 rounded border border-zinc-200 p-4">
         <h2 className="text-xl font-medium">{editingId ? "Edit" : "Create"} application</h2>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-2 md:grid-cols-2">
           <input
             required
             placeholder="Candidate name"
@@ -238,6 +269,30 @@ export default function ApplicationsPage() {
             value={form.sourceUrl}
             onChange={(e) => setForm((f) => ({ ...f, sourceUrl: e.target.value }))}
           />
+          <select
+            className="rounded border p-2"
+            value={form.cvDocumentVersionId}
+            onChange={(e) => setForm((f) => ({ ...f, cvDocumentVersionId: e.target.value }))}
+          >
+            <option value="">Select CV version</option>
+            {cvVersions.map((version) => (
+              <option key={version.id} value={version.id}>
+                {version.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="rounded border p-2"
+            value={form.coverDocumentVersionId}
+            onChange={(e) => setForm((f) => ({ ...f, coverDocumentVersionId: e.target.value }))}
+          >
+            <option value="">Select cover letter version</option>
+            {coverVersions.map((version) => (
+              <option key={version.id} value={version.id}>
+                {version.label}
+              </option>
+            ))}
+          </select>
         </div>
         <textarea
           required
@@ -323,6 +378,7 @@ export default function ApplicationsPage() {
                       {label}
                     </th>
                   ))}
+                  <th className="border-b px-2 py-2">Documents</th>
                   <th className="border-b px-2 py-2">Actions</th>
                 </tr>
               </thead>
@@ -334,6 +390,11 @@ export default function ApplicationsPage() {
                     <td className="px-2 py-2">{application.status}</td>
                     <td className="px-2 py-2">
                       {new Date(application.updatedAt).toLocaleString()}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-zinc-600">
+                      CV: {application.cvDocumentVersionId ? "Linked" : "—"}
+                      <br />
+                      Cover: {application.coverDocumentVersionId ? "Linked" : "—"}
                     </td>
                     <td className="px-2 py-2">
                       <button
