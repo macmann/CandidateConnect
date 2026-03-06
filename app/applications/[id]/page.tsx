@@ -35,8 +35,21 @@ type RoundEditableFields = {
   round_type: InterviewRoundType;
 };
 
-const roundTypes: InterviewRoundType[] = ["Recruiter", "Hiring Manager", "Technical", "Case", "Panel", "Final"];
-const roundStatuses: InterviewRoundStatus[] = ["Scheduled", "Completed", "Passed", "Failed", "Cancelled"];
+const roundTypes: InterviewRoundType[] = [
+  "Recruiter",
+  "Hiring Manager",
+  "Technical",
+  "Case",
+  "Panel",
+  "Final",
+];
+const roundStatuses: InterviewRoundStatus[] = [
+  "Scheduled",
+  "Completed",
+  "Passed",
+  "Failed",
+  "Cancelled",
+];
 
 function toDatetimeLocalValue(iso?: string) {
   if (!iso) return "";
@@ -69,12 +82,16 @@ export default function ApplicationDetailPage() {
   const [prepByRound, setPrepByRound] = useState<Record<string, PrepArtifact[]>>({});
   const [debriefByRound, setDebriefByRound] = useState<Record<string, RoundDebriefPayload>>({});
   const [taskDraftByRound, setTaskDraftByRound] = useState<Record<string, TaskListDraft>>({});
-  const [activities, setActivities] = useState<Array<{ id: string; message: string; created_at: string }>>([]);
+  const [activities, setActivities] = useState<
+    Array<{ id: string; message: string; created_at: string }>
+  >([]);
   const [error, setError] = useState<string | null>(null);
 
   const [roundType, setRoundType] = useState<InterviewRoundType>("Recruiter");
   const [datetime, setDatetime] = useState("");
-  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  const [timezone, setTimezone] = useState(
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  );
   const [mode, setMode] = useState("Zoom");
   const [location, setLocation] = useState("");
   const [purpose, setPurpose] = useState("");
@@ -90,7 +107,9 @@ export default function ApplicationDetailPage() {
 
   const [debrief, setDebrief] = useState<Record<string, Record<string, string>>>({});
   const [roundEdits, setRoundEdits] = useState<Record<string, RoundEditableFields>>({});
-  const [roundSaveState, setRoundSaveState] = useState<Record<string, { saving: boolean; message?: string; error?: string }>>({});
+  const [roundSaveState, setRoundSaveState] = useState<
+    Record<string, { saving: boolean; message?: string; error?: string }>
+  >({});
 
   const load = useCallback(async () => {
     const [applicationRes, roundsRes, interviewerRes, activityRes] = await Promise.all([
@@ -130,9 +149,15 @@ export default function ApplicationDetailPage() {
     await Promise.all(
       loadedRounds.map(async (round) => {
         const [peopleRes, prepRes, debriefRes] = await Promise.all([
-          fetch(`/api/applications/${id}/interview-rounds/${round.id}/interviewers`, { cache: "no-store" }),
-          fetch(`/api/applications/${id}/interview-rounds/${round.id}/prep-pack`, { cache: "no-store" }),
-          fetch(`/api/applications/${id}/interview-rounds/${round.id}/debrief`, { cache: "no-store" }),
+          fetch(`/api/applications/${id}/interview-rounds/${round.id}/interviewers`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/applications/${id}/interview-rounds/${round.id}/prep-pack`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/applications/${id}/interview-rounds/${round.id}/debrief`, {
+            cache: "no-store",
+          }),
         ]);
         const peopleData = await peopleRes.json();
         const prepData = await prepRes.json();
@@ -259,7 +284,8 @@ export default function ApplicationDetailPage() {
     setRoundEdits((current) => ({
       ...current,
       [roundId]: {
-        ...(current[roundId] ?? getRoundEditableState(rounds.find((round) => round.id === roundId) as InterviewRound)),
+        ...(current[roundId] ??
+          getRoundEditableState(rounds.find((round) => round.id === roundId) as InterviewRound)),
         [field]: value,
       },
     }));
@@ -282,10 +308,15 @@ export default function ApplicationDetailPage() {
 
     const previousRound = rounds.find((round) => round.id === roundId);
 
-    setRoundSaveState((current) => ({ ...current, [roundId]: { saving: true, message: "Saving changes…" } }));
+    setRoundSaveState((current) => ({
+      ...current,
+      [roundId]: { saving: true, message: "Saving changes…" },
+    }));
     setRounds((current) =>
       current.map((round) =>
-        round.id === roundId ? { ...round, ...payload, scheduled_at: payload.scheduled_at || undefined } : round,
+        round.id === roundId
+          ? { ...round, ...payload, scheduled_at: payload.scheduled_at || undefined }
+          : round,
       ),
     );
 
@@ -301,7 +332,9 @@ export default function ApplicationDetailPage() {
         [roundId]: { saving: false, error: "Failed to save round changes. Please retry." },
       }));
       if (previousRound) {
-        setRounds((current) => current.map((round) => (round.id === roundId ? previousRound : round)));
+        setRounds((current) =>
+          current.map((round) => (round.id === roundId ? previousRound : round)),
+        );
       }
       return;
     }
@@ -310,7 +343,10 @@ export default function ApplicationDetailPage() {
     const updatedRound = data.round as InterviewRound;
     setRounds((current) => current.map((round) => (round.id === roundId ? updatedRound : round)));
     setRoundEdits((current) => ({ ...current, [roundId]: getRoundEditableState(updatedRound) }));
-    setRoundSaveState((current) => ({ ...current, [roundId]: { saving: false, message: "Round changes saved." } }));
+    setRoundSaveState((current) => ({
+      ...current,
+      [roundId]: { saving: false, message: "Round changes saved." },
+    }));
   }
 
   async function pinPrep(roundId: string, artifactId: string) {
@@ -334,12 +370,11 @@ export default function ApplicationDetailPage() {
 
   function updateTaskDraft(roundId: string, updater: (draft: TaskListDraft) => TaskListDraft) {
     setTaskDraftByRound((current) => {
-      const existing =
-        current[roundId] ?? {
-          follow_up_reminder_at: "",
-          take_home_items: [],
-          new_item_text: "",
-        };
+      const existing = current[roundId] ?? {
+        follow_up_reminder_at: "",
+        take_home_items: [],
+        new_item_text: "",
+      };
       return { ...current, [roundId]: updater(existing) };
     });
   }
@@ -350,10 +385,20 @@ export default function ApplicationDetailPage() {
       if (!text) return draft;
       return {
         ...draft,
-        take_home_items: [...draft.take_home_items, { id: crypto.randomUUID(), text, completed: false }],
+        take_home_items: [
+          ...draft.take_home_items,
+          { id: crypto.randomUUID(), text, completed: false },
+        ],
         new_item_text: "",
       };
     });
+  }
+
+  function removeChecklistItem(roundId: string, itemId: string) {
+    updateTaskDraft(roundId, (draft) => ({
+      ...draft,
+      take_home_items: draft.take_home_items.filter((item) => item.id !== itemId),
+    }));
   }
 
   async function saveTaskList(roundId: string) {
@@ -366,7 +411,9 @@ export default function ApplicationDetailPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        follow_up_reminder_at: draft.follow_up_reminder_at ? new Date(draft.follow_up_reminder_at).toISOString() : "",
+        follow_up_reminder_at: draft.follow_up_reminder_at
+          ? new Date(draft.follow_up_reminder_at).toISOString()
+          : "",
         take_home_items: draft.take_home_items,
       }),
     });
@@ -387,28 +434,68 @@ export default function ApplicationDetailPage() {
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">{application.company} — {application.role}</h1>
+          <h1 className="text-2xl font-semibold">
+            {application.company} — {application.role}
+          </h1>
           <p className="text-sm text-zinc-500">Interview command center</p>
         </div>
-        <Link href="/applications" className="rounded border px-3 py-2 text-sm">Back</Link>
+        <Link href="/applications" className="rounded border px-3 py-2 text-sm">
+          Back
+        </Link>
       </div>
 
       <section className="rounded border p-4">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="font-semibold">Interview rounds timeline</h2>
-          <button className="rounded border px-2 py-1 text-xs" onClick={moveToNextRound}>Move to next round</button>
+          <button className="rounded border px-2 py-1 text-xs" onClick={moveToNextRound}>
+            Move to next round
+          </button>
         </div>
         <form onSubmit={createRound} className="grid gap-2 md:grid-cols-3">
-          <select className="rounded border p-2" value={roundType} onChange={(e) => setRoundType(e.target.value as InterviewRoundType)}>
-            {roundTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+          <select
+            className="rounded border p-2"
+            value={roundType}
+            onChange={(e) => setRoundType(e.target.value as InterviewRoundType)}
+          >
+            {roundTypes.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
           </select>
-          <input type="datetime-local" className="rounded border p-2" value={datetime} onChange={(e) => setDatetime(e.target.value)} />
-          <input className="rounded border p-2" placeholder="Timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
-          <select className="rounded border p-2" value={mode} onChange={(e) => setMode(e.target.value)}>
-            <option>Zoom</option><option>Onsite</option><option>Phone</option>
+          <input
+            type="datetime-local"
+            className="rounded border p-2"
+            value={datetime}
+            onChange={(e) => setDatetime(e.target.value)}
+          />
+          <input
+            className="rounded border p-2"
+            placeholder="Timezone"
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+          />
+          <select
+            className="rounded border p-2"
+            value={mode}
+            onChange={(e) => setMode(e.target.value)}
+          >
+            <option>Zoom</option>
+            <option>Onsite</option>
+            <option>Phone</option>
           </select>
-          <input className="rounded border p-2" placeholder="Location / meeting link" value={location} onChange={(e) => setLocation(e.target.value)} />
-          <input className="rounded border p-2" placeholder="Purpose / goals" value={purpose} onChange={(e) => setPurpose(e.target.value)} />
+          <input
+            className="rounded border p-2"
+            placeholder="Location / meeting link"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+          />
+          <input
+            className="rounded border p-2"
+            placeholder="Purpose / goals"
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value)}
+          />
           <button className="rounded bg-black px-3 py-2 text-white md:col-span-3">Add round</button>
         </form>
 
@@ -419,20 +506,35 @@ export default function ApplicationDetailPage() {
             const edit = roundEdits[round.id] ?? getRoundEditableState(round);
             const saveState = roundSaveState[round.id];
             const latestDebriefArtifact = debriefByRound[round.id]?.latestArtifact;
-            const taskDraft =
-              taskDraftByRound[round.id] ??
-              {
-                follow_up_reminder_at: "",
-                take_home_items: [],
-                new_item_text: "",
-              };
+            const taskDraft = taskDraftByRound[round.id] ?? {
+              follow_up_reminder_at: "",
+              take_home_items: [],
+              new_item_text: "",
+            };
             return (
               <article key={round.id} className="rounded border p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium">Round {round.round_index}: {round.round_type}</p>
-                  <p className="text-sm text-zinc-600">{round.scheduled_at ? new Date(round.scheduled_at).toLocaleString() : "Date TBD"} {round.timezone || ""}</p>
-                  <select className="rounded border p-1" value={round.status} onChange={(e) => updateRoundStatus(round.id, e.target.value as InterviewRoundStatus)}>
-                    {roundStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                  <p className="font-medium">
+                    Round {round.round_index}: {round.round_type}
+                  </p>
+                  <p className="text-sm text-zinc-600">
+                    {round.scheduled_at
+                      ? new Date(round.scheduled_at).toLocaleString()
+                      : "Date TBD"}{" "}
+                    {round.timezone || ""}
+                  </p>
+                  <select
+                    className="rounded border p-1"
+                    value={round.status}
+                    onChange={(e) =>
+                      updateRoundStatus(round.id, e.target.value as InterviewRoundStatus)
+                    }
+                  >
+                    {roundStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
                   </select>
                   <Link
                     href={`/applications/${id}/interview-rounds/${round.id}/cheat-sheet`}
@@ -441,7 +543,9 @@ export default function ApplicationDetailPage() {
                     Cheat Sheet
                   </Link>
                 </div>
-                <p className="text-sm text-zinc-600">Mode: {round.mode || "TBD"} · {round.location_or_link || "location TBD"}</p>
+                <p className="text-sm text-zinc-600">
+                  Mode: {round.mode || "TBD"} · {round.location_or_link || "location TBD"}
+                </p>
                 <p className="text-sm">Purpose: {round.purpose || "TBD"}</p>
 
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -472,7 +576,11 @@ export default function ApplicationDetailPage() {
                     value={edit.round_type}
                     onChange={(e) => updateRoundEdit(round.id, "round_type", e.target.value)}
                   >
-                    {roundTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                    {roundTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
                   </select>
                   <input
                     className="rounded border p-2 text-sm md:col-span-2"
@@ -501,17 +609,29 @@ export default function ApplicationDetailPage() {
                     >
                       {saveState?.saving ? "Saving…" : "Save round changes"}
                     </button>
-                    {saveState?.message && <p className="mt-1 text-xs text-emerald-700">{saveState.message}</p>}
-                    {saveState?.error && <p className="mt-1 text-xs text-red-700">{saveState.error}</p>}
+                    {saveState?.message && (
+                      <p className="mt-1 text-xs text-emerald-700">{saveState.message}</p>
+                    )}
+                    {saveState?.error && (
+                      <p className="mt-1 text-xs text-red-700">{saveState.error}</p>
+                    )}
                   </div>
                 </div>
 
                 <div className="mt-3">
                   <p className="text-sm font-medium">People in this round</p>
-                  <p className="text-xs text-zinc-500">{(roundPeople[round.id] ?? []).map((p) => p.name).join(", ") || "No one linked yet"}</p>
+                  <p className="text-xs text-zinc-500">
+                    {(roundPeople[round.id] ?? []).map((p) => p.name).join(", ") ||
+                      "No one linked yet"}
+                  </p>
                   <div className="mt-1 flex flex-wrap gap-2">
                     {interviewers.map((person) => (
-                      <button key={person.id} className={`rounded border px-2 py-1 text-xs ${(roundPeople[round.id] ?? []).some((r) => r.id === person.id) ? "bg-zinc-900 text-white" : ""}`} onClick={() => toggleInterviewer(round.id, person.id)} type="button">
+                      <button
+                        key={person.id}
+                        className={`rounded border px-2 py-1 text-xs ${(roundPeople[round.id] ?? []).some((r) => r.id === person.id) ? "bg-zinc-900 text-white" : ""}`}
+                        onClick={() => toggleInterviewer(round.id, person.id)}
+                        type="button"
+                      >
                         {person.name}
                       </button>
                     ))}
@@ -520,25 +640,61 @@ export default function ApplicationDetailPage() {
 
                 <div className="mt-3 rounded bg-zinc-50 p-2">
                   <div className="mb-2 flex items-center gap-2">
-                    <select className="rounded border p-1 text-xs" value={prepTone} onChange={(e) => setPrepTone(e.target.value as "concise" | "detailed")}><option value="concise">Concise</option><option value="detailed">Detailed</option></select>
-                    <select className="rounded border p-1 text-xs" value={prepLength} onChange={(e) => setPrepLength(e.target.value as "short" | "full")}><option value="short">Short pack</option><option value="full">Full pack</option></select>
-                    <button className="rounded border px-2 py-1 text-xs" onClick={() => generatePrep(round.id)} type="button">Generate Prep Pack</button>
+                    <select
+                      className="rounded border p-1 text-xs"
+                      value={prepTone}
+                      onChange={(e) => setPrepTone(e.target.value as "concise" | "detailed")}
+                    >
+                      <option value="concise">Concise</option>
+                      <option value="detailed">Detailed</option>
+                    </select>
+                    <select
+                      className="rounded border p-1 text-xs"
+                      value={prepLength}
+                      onChange={(e) => setPrepLength(e.target.value as "short" | "full")}
+                    >
+                      <option value="short">Short pack</option>
+                      <option value="full">Full pack</option>
+                    </select>
+                    <button
+                      className="rounded border px-2 py-1 text-xs"
+                      onClick={() => generatePrep(round.id)}
+                      type="button"
+                    >
+                      Generate Prep Pack
+                    </button>
                   </div>
                   {pinned ? (
                     <>
-                      {pinned.warning && <p className="mb-2 text-xs text-amber-700">{pinned.warning}</p>}
-                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-xs">{pinned.generated_text}</pre>
+                      {pinned.warning && (
+                        <p className="mb-2 text-xs text-amber-700">{pinned.warning}</p>
+                      )}
+                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-xs">
+                        {pinned.generated_text}
+                      </pre>
                       <div className="mt-2 flex gap-2">
                         {prep.map((item) => (
-                          <button key={item.id} className="rounded border px-2 py-1 text-xs" onClick={() => pinPrep(round.id, item.id)} type="button">Pin v{item.version}{item.pinned ? " ✓" : ""}</button>
+                          <button
+                            key={item.id}
+                            className="rounded border px-2 py-1 text-xs"
+                            onClick={() => pinPrep(round.id, item.id)}
+                            type="button"
+                          >
+                            Pin v{item.version}
+                            {item.pinned ? " ✓" : ""}
+                          </button>
                         ))}
                       </div>
                     </>
-                  ) : <p className="text-xs text-zinc-500">No prep yet.</p>}
+                  ) : (
+                    <p className="text-xs text-zinc-500">No prep yet.</p>
+                  )}
                 </div>
 
                 <details className="mt-3">
-                  <summary className="cursor-pointer text-sm font-medium">Post-round debrief</summary>
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Post-round debrief
+                  </summary>
                   <div className="mt-2 grid gap-2">
                     {[
                       ["raw_notes", "Raw notes"],
@@ -548,25 +704,58 @@ export default function ApplicationDetailPage() {
                       ["to_improve", "What to improve?"],
                       ["follow_up_tasks", "Follow-up tasks"],
                     ].map(([key, label]) => (
-                      <textarea key={key} className="rounded border p-2 text-sm" placeholder={label} value={debrief[round.id]?.[key] ?? ""} onChange={(e) => setDebrief((current) => ({ ...current, [round.id]: { ...(current[round.id] ?? {}), [key]: e.target.value } }))} />
+                      <textarea
+                        key={key}
+                        className="rounded border p-2 text-sm"
+                        placeholder={label}
+                        value={debrief[round.id]?.[key] ?? ""}
+                        onChange={(e) =>
+                          setDebrief((current) => ({
+                            ...current,
+                            [round.id]: { ...(current[round.id] ?? {}), [key]: e.target.value },
+                          }))
+                        }
+                      />
                     ))}
-                    <button className="rounded border px-2 py-1 text-xs" onClick={() => saveDebrief(round.id)} type="button">Generate summary + improvement plan</button>
+                    <button
+                      className="rounded border px-2 py-1 text-xs"
+                      onClick={() => saveDebrief(round.id)}
+                      type="button"
+                    >
+                      Generate summary + improvement plan
+                    </button>
 
                     {latestDebriefArtifact ? (
                       <div className="rounded border bg-zinc-50 p-3 text-sm">
                         <p className="font-medium">Latest debrief artifact</p>
-                        <p className="mt-2 text-xs font-semibold uppercase text-zinc-500">Summary</p>
+                        <p className="mt-2 text-xs font-semibold uppercase text-zinc-500">
+                          Summary
+                        </p>
                         <p>{latestDebriefArtifact.generated_summary}</p>
-                        <p className="mt-2 text-xs font-semibold uppercase text-zinc-500">Improvements</p>
+                        <p className="mt-2 text-xs font-semibold uppercase text-zinc-500">
+                          Improvements
+                        </p>
                         <p>{latestDebriefArtifact.improvements}</p>
-                        <p className="mt-2 text-xs font-semibold uppercase text-zinc-500">Next-round focus</p>
+                        <p className="mt-2 text-xs font-semibold uppercase text-zinc-500">
+                          Next-round focus
+                        </p>
                         <p>{latestDebriefArtifact.next_round_focus}</p>
                         <div className="mt-2">
                           <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold uppercase text-zinc-500">Thank-you email draft</p>
-                            <button className="rounded border px-2 py-1 text-xs" type="button" onClick={() => copyText(latestDebriefArtifact.thank_you_email)}>Copy</button>
+                            <p className="text-xs font-semibold uppercase text-zinc-500">
+                              Thank-you email draft
+                            </p>
+                            <button
+                              className="rounded border px-2 py-1 text-xs"
+                              type="button"
+                              onClick={() => copyText(latestDebriefArtifact.thank_you_email)}
+                            >
+                              Copy
+                            </button>
                           </div>
-                          <pre className="mt-1 whitespace-pre-wrap rounded border bg-white p-2 text-xs">{latestDebriefArtifact.thank_you_email}</pre>
+                          <pre className="mt-1 whitespace-pre-wrap rounded border bg-white p-2 text-xs">
+                            {latestDebriefArtifact.thank_you_email}
+                          </pre>
                         </div>
                       </div>
                     ) : (
@@ -575,20 +764,27 @@ export default function ApplicationDetailPage() {
 
                     <div className="rounded border p-3">
                       <p className="text-sm font-medium">Post-round task tracker</p>
-                      <label className="mt-2 block text-xs font-medium text-zinc-600">Follow-up email reminder</label>
+                      <label className="mt-2 block text-xs font-medium text-zinc-600">
+                        Follow-up email reminder
+                      </label>
                       <input
                         type="datetime-local"
                         className="mt-1 rounded border p-2 text-sm"
                         value={taskDraft.follow_up_reminder_at}
                         onChange={(event) =>
-                          updateTaskDraft(round.id, (draft) => ({ ...draft, follow_up_reminder_at: event.target.value }))
+                          updateTaskDraft(round.id, (draft) => ({
+                            ...draft,
+                            follow_up_reminder_at: event.target.value,
+                          }))
                         }
                       />
 
-                      <p className="mt-3 text-xs font-medium text-zinc-600">Take-home assignment checklist</p>
+                      <p className="mt-3 text-xs font-medium text-zinc-600">
+                        Take-home assignment checklist
+                      </p>
                       <div className="mt-1 space-y-2">
                         {taskDraft.take_home_items.map((item) => (
-                          <label key={item.id} className="flex items-center gap-2 text-sm">
+                          <div key={item.id} className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
                               checked={item.completed}
@@ -596,13 +792,28 @@ export default function ApplicationDetailPage() {
                                 updateTaskDraft(round.id, (draft) => ({
                                   ...draft,
                                   take_home_items: draft.take_home_items.map((draftItem) =>
-                                    draftItem.id === item.id ? { ...draftItem, completed: event.target.checked } : draftItem,
+                                    draftItem.id === item.id
+                                      ? { ...draftItem, completed: event.target.checked }
+                                      : draftItem,
                                   ),
                                 }))
                               }
                             />
-                            <span className={item.completed ? "line-through text-zinc-500" : ""}>{item.text}</span>
-                          </label>
+                            <span
+                              className={
+                                "flex-1 " + (item.completed ? "line-through text-zinc-500" : "")
+                              }
+                            >
+                              {item.text}
+                            </span>
+                            <button
+                              type="button"
+                              className="rounded border px-2 py-0.5 text-[11px]"
+                              onClick={() => removeChecklistItem(round.id, item.id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
                         ))}
                       </div>
 
@@ -612,15 +823,26 @@ export default function ApplicationDetailPage() {
                           placeholder="Add checklist item"
                           value={taskDraft.new_item_text}
                           onChange={(event) =>
-                            updateTaskDraft(round.id, (draft) => ({ ...draft, new_item_text: event.target.value }))
+                            updateTaskDraft(round.id, (draft) => ({
+                              ...draft,
+                              new_item_text: event.target.value,
+                            }))
                           }
                         />
-                        <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => addChecklistItem(round.id)}>
+                        <button
+                          type="button"
+                          className="rounded border px-2 py-1 text-xs"
+                          onClick={() => addChecklistItem(round.id)}
+                        >
                           Add
                         </button>
                       </div>
 
-                      <button type="button" className="mt-3 rounded border px-2 py-1 text-xs" onClick={() => saveTaskList(round.id)}>
+                      <button
+                        type="button"
+                        className="mt-3 rounded border px-2 py-1 text-xs"
+                        onClick={() => saveTaskList(round.id)}
+                      >
                         Save post-round tasks
                       </button>
                     </div>
@@ -635,12 +857,39 @@ export default function ApplicationDetailPage() {
       <section className="rounded border p-4">
         <h2 className="mb-2 font-semibold">Interviewer profiles</h2>
         <form onSubmit={createInterviewer} className="grid gap-2 md:grid-cols-3">
-          <input className="rounded border p-2" placeholder="Name (or Unknown interviewer)" value={personName} onChange={(e) => setPersonName(e.target.value)} />
-          <input className="rounded border p-2" placeholder="Title / role" value={personTitle} onChange={(e) => setPersonTitle(e.target.value)} />
-          <input className="rounded border p-2" placeholder="Department (optional)" value={personDepartment} onChange={(e) => setPersonDepartment(e.target.value)} />
-          <input className="rounded border p-2" placeholder="LinkedIn URL" value={personLinkedinUrl} onChange={(e) => setPersonLinkedinUrl(e.target.value)} />
-          <input className="rounded border p-2" placeholder="Notes / vibe / what to ask" value={personNotes} onChange={(e) => setPersonNotes(e.target.value)} />
-          <button className="rounded bg-black px-3 py-2 text-white md:col-span-3">Add interviewer</button>
+          <input
+            className="rounded border p-2"
+            placeholder="Name (or Unknown interviewer)"
+            value={personName}
+            onChange={(e) => setPersonName(e.target.value)}
+          />
+          <input
+            className="rounded border p-2"
+            placeholder="Title / role"
+            value={personTitle}
+            onChange={(e) => setPersonTitle(e.target.value)}
+          />
+          <input
+            className="rounded border p-2"
+            placeholder="Department (optional)"
+            value={personDepartment}
+            onChange={(e) => setPersonDepartment(e.target.value)}
+          />
+          <input
+            className="rounded border p-2"
+            placeholder="LinkedIn URL"
+            value={personLinkedinUrl}
+            onChange={(e) => setPersonLinkedinUrl(e.target.value)}
+          />
+          <input
+            className="rounded border p-2"
+            placeholder="Notes / vibe / what to ask"
+            value={personNotes}
+            onChange={(e) => setPersonNotes(e.target.value)}
+          />
+          <button className="rounded bg-black px-3 py-2 text-white md:col-span-3">
+            Add interviewer
+          </button>
         </form>
       </section>
 
@@ -648,13 +897,22 @@ export default function ApplicationDetailPage() {
         <h2 className="font-semibold">Activity</h2>
         <ul className="mt-2 space-y-1 text-sm">
           {activities.map((item) => (
-            <li key={item.id}>• {item.message} <span className="text-zinc-500">({new Date(item.created_at).toLocaleString()})</span></li>
+            <li key={item.id}>
+              • {item.message}{" "}
+              <span className="text-zinc-500">({new Date(item.created_at).toLocaleString()})</span>
+            </li>
           ))}
         </ul>
       </section>
 
-      {isSubmitted && <p className="text-xs text-zinc-500">Submission snapshot is frozen; prep uses submitted materials.</p>}
-      {error && <p className="rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+      {isSubmitted && (
+        <p className="text-xs text-zinc-500">
+          Submission snapshot is frozen; prep uses submitted materials.
+        </p>
+      )}
+      {error && (
+        <p className="rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">{error}</p>
+      )}
     </main>
   );
 }

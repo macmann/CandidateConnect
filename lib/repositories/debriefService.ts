@@ -70,7 +70,7 @@ ${JSON.stringify(input, null, 2)}`,
       prepRepository.listDebriefArtifacts(roundId),
       prepRepository.getTaskList(roundId),
     ]);
-    const latestArtifact = [...artifacts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null;
+    const latestArtifact = artifacts[0] ?? null;
     return { debriefs, artifacts, latestArtifact, taskList };
   }
 

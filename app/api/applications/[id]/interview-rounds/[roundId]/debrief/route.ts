@@ -1,13 +1,20 @@
+import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { debriefService } from "@/lib/repositories/debriefService";
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ roundId: string }> }) {
+export async function GET(
+  _: NextRequest,
+  { params }: { params: Promise<{ id: string; roundId: string }> },
+) {
   const { roundId } = await params;
   const data = await debriefService.list(roundId);
   return NextResponse.json(data);
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ roundId: string }> }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; roundId: string }> },
+) {
   const { roundId } = await params;
   const body = (await request.json()) as Record<string, unknown>;
   const data = await debriefService.create({
@@ -22,7 +29,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   return NextResponse.json(data, { status: 201 });
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ roundId: string }> }) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; roundId: string }> },
+) {
   const { roundId } = await params;
   const body = (await request.json()) as {
     follow_up_reminder_at?: string;
@@ -32,8 +42,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const takeHomeItems = Array.isArray(body.take_home_items)
     ? body.take_home_items
         .filter((item) => item && typeof item.text === "string" && item.text.trim())
-        .map((item, index) => ({
-          id: String(item.id ?? `${index}-${Date.now()}`),
+        .map((item) => ({
+          id: typeof item.id === "string" && item.id.trim() ? item.id : crypto.randomUUID(),
           text: String(item.text ?? "").trim(),
           completed: Boolean(item.completed),
         }))

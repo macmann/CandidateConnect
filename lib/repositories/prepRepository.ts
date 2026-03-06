@@ -1,7 +1,13 @@
 import crypto from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { DebriefArtifact, PrepArtifact, RoundDebrief, RoundTaskList, TakeHomeChecklistItem } from "@/lib/domain/application";
+import {
+  DebriefArtifact,
+  PrepArtifact,
+  RoundDebrief,
+  RoundTaskList,
+  TakeHomeChecklistItem,
+} from "@/lib/domain/application";
 
 interface PrepStore {
   prepArtifacts: PrepArtifact[];
@@ -12,7 +18,12 @@ interface PrepStore {
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "prep-artifacts.json");
-const defaultStore: PrepStore = { prepArtifacts: [], debriefs: [], debriefArtifacts: [], taskLists: [] };
+const defaultStore: PrepStore = {
+  prepArtifacts: [],
+  debriefs: [],
+  debriefArtifacts: [],
+  taskLists: [],
+};
 const nowIso = () => new Date().toISOString();
 
 async function ensureStore() {
@@ -47,10 +58,14 @@ async function writeStore(store: PrepStore) {
 export class PrepRepository {
   async listPrep(roundId: string): Promise<PrepArtifact[]> {
     const store = await readStore();
-    return store.prepArtifacts.filter((p) => p.round_id === roundId).sort((a,b)=>b.version-a.version);
+    return store.prepArtifacts
+      .filter((p) => p.round_id === roundId)
+      .sort((a, b) => b.version - a.version);
   }
 
-  async createPrep(input: Omit<PrepArtifact, "id" | "created_at" | "version">): Promise<PrepArtifact> {
+  async createPrep(
+    input: Omit<PrepArtifact, "id" | "created_at" | "version">,
+  ): Promise<PrepArtifact> {
     const store = await readStore();
     const current = store.prepArtifacts.filter((p) => p.round_id === input.round_id);
     const artifact: PrepArtifact = {
@@ -80,7 +95,9 @@ export class PrepRepository {
     return debrief;
   }
 
-  async saveDebriefArtifact(input: Omit<DebriefArtifact, "id" | "created_at">): Promise<DebriefArtifact> {
+  async saveDebriefArtifact(
+    input: Omit<DebriefArtifact, "id" | "created_at">,
+  ): Promise<DebriefArtifact> {
     const store = await readStore();
     const artifact: DebriefArtifact = { ...input, id: crypto.randomUUID(), created_at: nowIso() };
     store.debriefArtifacts.push(artifact);
@@ -90,12 +107,16 @@ export class PrepRepository {
 
   async listDebriefs(roundId: string): Promise<RoundDebrief[]> {
     const store = await readStore();
-    return store.debriefs.filter((d) => d.round_id === roundId);
+    return store.debriefs
+      .filter((debrief) => debrief.round_id === roundId)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
   async listDebriefArtifacts(roundId: string): Promise<DebriefArtifact[]> {
     const store = await readStore();
-    return store.debriefArtifacts.filter((d) => d.round_id === roundId);
+    return store.debriefArtifacts
+      .filter((artifact) => artifact.round_id === roundId)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
   async getTaskList(roundId: string): Promise<RoundTaskList | null> {
