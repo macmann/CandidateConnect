@@ -72,6 +72,13 @@ export interface RoundDebrief {
     went_badly: string;
     to_improve: string;
     follow_up_tasks: string;
+    follow_up_reminder_at?: string;
+    follow_up_reminder_completed: boolean;
+    take_home_checklist: Array<{
+      id: string;
+      label: string;
+      checked: boolean;
+    }>;
   };
   created_at: string;
 }
