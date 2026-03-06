@@ -4,10 +4,14 @@ import { interviewerRepository } from "@/lib/repositories/interviewerRepository"
 
 const USER_ID = "default-user";
 
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  _: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
   const [allInterviewers, applicationRounds] = await Promise.all([
     interviewerRepository.listByUser(USER_ID),
-    interviewRoundRepository.listByApplicationId(params.id),
+    interviewRoundRepository.listByApplicationId(id),
   ]);
   const linkedInterviewers = await interviewerRepository.listLinkedToApplication(
     USER_ID,

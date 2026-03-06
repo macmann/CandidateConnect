@@ -7,6 +7,7 @@ import {
   Application,
   DebriefArtifact,
   InterviewRound,
+  InterviewMode,
   InterviewRoundStatus,
   InterviewRoundType,
   Interviewer,
@@ -321,7 +322,7 @@ export default function ApplicationDetailPage() {
     const payload = {
       scheduled_at: edits.scheduled_at ? new Date(edits.scheduled_at).toISOString() : "",
       timezone: edits.timezone,
-      mode: edits.mode,
+      mode: edits.mode ? (edits.mode as InterviewMode) : undefined,
       location_or_link: edits.location_or_link,
       purpose: edits.purpose,
       notes: edits.notes,
