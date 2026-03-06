@@ -97,6 +97,8 @@ export default function ApplicationDetailPage() {
   const [prepLength, setPrepLength] = useState<"short" | "full">("short");
 
   const [debrief, setDebrief] = useState<Record<string, Record<string, string>>>({});
+  const [reminderDraftByRound, setReminderDraftByRound] = useState<Record<string, string>>({});
+  const [newTaskByRound, setNewTaskByRound] = useState<Record<string, string>>({});
   const [roundEdits, setRoundEdits] = useState<Record<string, RoundEditableFields>>({});
   const [roundSaveState, setRoundSaveState] = useState<
     Record<string, { saving: boolean; message?: string; error?: string }>
@@ -180,6 +182,15 @@ export default function ApplicationDetailPage() {
           to_improve: latestDebrief.structured_fields.to_improve,
           follow_up_tasks: latestDebrief.structured_fields.follow_up_tasks,
         };
+      }
+      return next;
+    });
+    setReminderDraftByRound((current) => {
+      const next = { ...current };
+      for (const round of loadedRounds) {
+        if (next[round.id] !== undefined) continue;
+        const latestDebrief = debriefs[round.id]?.[debriefs[round.id].length - 1];
+        next[round.id] = toDatetimeLocalValue(latestDebrief?.structured_fields.follow_up_reminder_at);
       }
       return next;
     });
@@ -371,11 +382,31 @@ export default function ApplicationDetailPage() {
 
   async function saveDebrief(roundId: string) {
     const values = debrief[roundId] ?? {};
+    const latestDebrief = debriefByRound[roundId]?.[debriefByRound[roundId].length - 1];
     await fetch(`/api/applications/${id}/interview-rounds/${roundId}/debrief`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
+      body: JSON.stringify({
+        ...values,
+        follow_up_reminder_at: latestDebrief?.structured_fields.follow_up_reminder_at ?? "",
+        follow_up_reminder_completed:
+          latestDebrief?.structured_fields.follow_up_reminder_completed ?? false,
+        take_home_checklist: latestDebrief?.structured_fields.take_home_checklist ?? [],
+      }),
     });
+    await load();
+  }
+
+  async function patchDebriefTracking(roundId: string, payload: Record<string, unknown>) {
+    const response = await fetch(`/api/applications/${id}/interview-rounds/${roundId}/debrief`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      setError("Save a debrief entry before editing reminders or take-home tasks.");
+      return;
+    }
     await load();
   }
 
@@ -454,6 +485,8 @@ export default function ApplicationDetailPage() {
           {rounds.map((round) => {
             const prep = prepByRound[round.id] ?? [];
             const debriefEntries = debriefByRound[round.id] ?? [];
+            const latestDebrief = debriefEntries[debriefEntries.length - 1];
+            const checklist = latestDebrief?.structured_fields.take_home_checklist ?? [];
             const pinned = prep.find((item) => item.pinned) ?? prep[0];
             const latestDebriefArtifact =
               debriefArtifactsByRound[round.id]?.[debriefArtifactsByRound[round.id].length - 1];
@@ -495,6 +528,13 @@ export default function ApplicationDetailPage() {
                   Mode: {round.mode || "TBD"} · {round.location_or_link || "location TBD"}
                 </p>
                 <p className="text-sm">Purpose: {round.purpose || "TBD"}</p>
+                <p className="text-xs text-zinc-500">
+                  Reminder:{" "}
+                  {latestDebrief?.structured_fields.follow_up_reminder_at
+                    ? `${new Date(latestDebrief.structured_fields.follow_up_reminder_at).toLocaleString()}${latestDebrief.structured_fields.follow_up_reminder_completed ? " (complete)" : " (pending)"}`
+                    : "Not set"}
+                  {" · "}Take-home tasks: {checklist.filter((item) => item.checked).length}/{checklist.length}
+                </p>
 
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
                   <input
@@ -649,6 +689,118 @@ export default function ApplicationDetailPage() {
                         Saved debrief entries: {debriefEntries.length}
                       </p>
                     )}
+                    <div className="grid gap-2 rounded border p-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        Follow-up reminder
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          type="datetime-local"
+                          className="rounded border p-2 text-sm"
+                          value={reminderDraftByRound[round.id] ?? ""}
+                          onChange={(e) =>
+                            setReminderDraftByRound((current) => ({
+                              ...current,
+                              [round.id]: e.target.value,
+                            }))
+                          }
+                        />
+                        <button
+                          className="rounded border px-2 py-1 text-xs"
+                          onClick={() =>
+                            patchDebriefTracking(round.id, {
+                              follow_up_reminder_at: reminderDraftByRound[round.id]
+                                ? new Date(reminderDraftByRound[round.id]).toISOString()
+                                : "",
+                            })
+                          }
+                          type="button"
+                        >
+                          Save reminder
+                        </button>
+                        <label className="flex items-center gap-1 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(
+                              latestDebrief?.structured_fields.follow_up_reminder_completed,
+                            )}
+                            onChange={(e) =>
+                              patchDebriefTracking(round.id, {
+                                follow_up_reminder_completed: e.target.checked,
+                              })
+                            }
+                          />
+                          Reminder complete
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 rounded border p-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        Take-home checklist
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          className="flex-1 rounded border p-2 text-sm"
+                          placeholder="Add a task"
+                          value={newTaskByRound[round.id] ?? ""}
+                          onChange={(e) =>
+                            setNewTaskByRound((current) => ({ ...current, [round.id]: e.target.value }))
+                          }
+                        />
+                        <button
+                          className="rounded border px-2 py-1 text-xs"
+                          onClick={() => {
+                            const label = (newTaskByRound[round.id] ?? "").trim();
+                            if (!label) return;
+                            const nextChecklist = [
+                              ...checklist,
+                              { id: crypto.randomUUID(), label, checked: false },
+                            ];
+                            setNewTaskByRound((current) => ({ ...current, [round.id]: "" }));
+                            patchDebriefTracking(round.id, { take_home_checklist: nextChecklist });
+                          }}
+                          type="button"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <div className="space-y-1">
+                        {checklist.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between text-sm">
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={item.checked}
+                                onChange={(e) =>
+                                  patchDebriefTracking(round.id, {
+                                    take_home_checklist: checklist.map((task) =>
+                                      task.id === item.id ? { ...task, checked: e.target.checked } : task,
+                                    ),
+                                  })
+                                }
+                              />
+                              {item.label}
+                            </label>
+                            <button
+                              className="rounded border px-2 py-1 text-xs"
+                              onClick={() =>
+                                patchDebriefTracking(round.id, {
+                                  take_home_checklist: checklist.filter((task) => task.id !== item.id),
+                                })
+                              }
+                              type="button"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        {checklist.length === 0 && (
+                          <p className="text-xs text-zinc-500">No take-home tasks yet.</p>
+                        )}
+                      </div>
+                    </div>
+
                     {[
                       ["raw_notes", "Raw notes"],
                       ["questions_asked", "What questions were asked?"],

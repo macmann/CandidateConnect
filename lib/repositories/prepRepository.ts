@@ -9,6 +9,28 @@ interface PrepStore {
   debriefArtifacts: DebriefArtifact[];
 }
 
+function normalizeDebrief(debrief: RoundDebrief): RoundDebrief {
+  return {
+    ...debrief,
+    structured_fields: {
+      ...debrief.structured_fields,
+      follow_up_reminder_at: debrief.structured_fields.follow_up_reminder_at,
+      follow_up_reminder_completed: Boolean(
+        debrief.structured_fields.follow_up_reminder_completed,
+      ),
+      take_home_checklist: Array.isArray(debrief.structured_fields.take_home_checklist)
+        ? debrief.structured_fields.take_home_checklist
+            .filter((item) => item && typeof item.id === "string" && typeof item.label === "string")
+            .map((item) => ({
+              id: item.id,
+              label: item.label,
+              checked: Boolean(item.checked),
+            }))
+        : [],
+    },
+  };
+}
+
 const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "prep-artifacts.json");
 const defaultStore: PrepStore = { prepArtifacts: [], debriefs: [], debriefArtifacts: [] };
@@ -29,7 +51,9 @@ async function readStore(): Promise<PrepStore> {
     const parsed = JSON.parse(await readFile(DATA_FILE, "utf8")) as PrepStore;
     return {
       prepArtifacts: Array.isArray(parsed.prepArtifacts) ? parsed.prepArtifacts : [],
-      debriefs: Array.isArray(parsed.debriefs) ? parsed.debriefs : [],
+      debriefs: Array.isArray(parsed.debriefs)
+        ? parsed.debriefs.map((debrief) => normalizeDebrief(debrief))
+        : [],
       debriefArtifacts: Array.isArray(parsed.debriefArtifacts) ? parsed.debriefArtifacts : [],
     };
   } catch {
@@ -72,10 +96,55 @@ export class PrepRepository {
 
   async saveDebrief(input: Omit<RoundDebrief, "id" | "created_at">): Promise<RoundDebrief> {
     const store = await readStore();
-    const debrief: RoundDebrief = { ...input, id: crypto.randomUUID(), created_at: nowIso() };
+    const debrief: RoundDebrief = normalizeDebrief({
+      ...input,
+      id: crypto.randomUUID(),
+      created_at: nowIso(),
+    });
     store.debriefs.push(debrief);
     await writeStore(store);
     return debrief;
+  }
+
+  async patchLatestDebriefTracking(
+    roundId: string,
+    updates: {
+      follow_up_reminder_at?: string;
+      follow_up_reminder_completed?: boolean;
+      take_home_checklist?: RoundDebrief["structured_fields"]["take_home_checklist"];
+    },
+  ): Promise<RoundDebrief | null> {
+    const store = await readStore();
+    let latestIndex = -1;
+    for (let i = store.debriefs.length - 1; i >= 0; i -= 1) {
+      if (store.debriefs[i].round_id === roundId) {
+        latestIndex = i;
+        break;
+      }
+    }
+
+    if (latestIndex < 0) return null;
+
+    const current = normalizeDebrief(store.debriefs[latestIndex]);
+    const next: RoundDebrief = {
+      ...current,
+      structured_fields: {
+        ...current.structured_fields,
+        ...(updates.follow_up_reminder_at !== undefined
+          ? { follow_up_reminder_at: updates.follow_up_reminder_at }
+          : {}),
+        ...(updates.follow_up_reminder_completed !== undefined
+          ? { follow_up_reminder_completed: updates.follow_up_reminder_completed }
+          : {}),
+        ...(updates.take_home_checklist !== undefined
+          ? { take_home_checklist: updates.take_home_checklist }
+          : {}),
+      },
+    };
+
+    store.debriefs[latestIndex] = normalizeDebrief(next);
+    await writeStore(store);
+    return store.debriefs[latestIndex];
   }
 
   async saveDebriefArtifact(input: Omit<DebriefArtifact, "id" | "created_at">): Promise<DebriefArtifact> {
@@ -88,7 +157,7 @@ export class PrepRepository {
 
   async listDebriefs(roundId: string): Promise<RoundDebrief[]> {
     const store = await readStore();
-    return store.debriefs.filter((d) => d.round_id === roundId);
+    return store.debriefs.filter((d) => d.round_id === roundId).map((debrief) => normalizeDebrief(debrief));
   }
 
   async listDebriefArtifacts(roundId: string): Promise<DebriefArtifact[]> {

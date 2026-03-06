@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { prepRepository } from "@/lib/repositories/prepRepository";
+import { RoundDebrief } from "@/lib/domain/application";
 
 interface DebriefInput {
   roundId: string;
@@ -9,6 +10,9 @@ interface DebriefInput {
   wentBadly: string;
   toImprove: string;
   followUpTasks: string;
+  followUpReminderAt?: string;
+  followUpReminderCompleted?: boolean;
+  takeHomeChecklist?: RoundDebrief["structured_fields"]["take_home_checklist"];
 }
 
 export class DebriefService {
@@ -22,6 +26,9 @@ export class DebriefService {
         went_badly: input.wentBadly,
         to_improve: input.toImprove,
         follow_up_tasks: input.followUpTasks,
+        follow_up_reminder_at: input.followUpReminderAt,
+        follow_up_reminder_completed: Boolean(input.followUpReminderCompleted),
+        take_home_checklist: input.takeHomeChecklist ?? [],
       },
     });
 
@@ -55,6 +62,21 @@ export class DebriefService {
     });
 
     return { debrief, artifact };
+  }
+
+  async patchTracking(
+    roundId: string,
+    updates: {
+      followUpReminderAt?: string;
+      followUpReminderCompleted?: boolean;
+      takeHomeChecklist?: RoundDebrief["structured_fields"]["take_home_checklist"];
+    },
+  ) {
+    return prepRepository.patchLatestDebriefTracking(roundId, {
+      follow_up_reminder_at: updates.followUpReminderAt,
+      follow_up_reminder_completed: updates.followUpReminderCompleted,
+      take_home_checklist: updates.takeHomeChecklist,
+    });
   }
 
   async list(roundId: string) {
