@@ -17,7 +17,7 @@ const emptyForm: DocumentFormState = {
   text: "",
 };
 
-export default function DocumentsPage() {
+export function DocumentsWorkspace() {
   const [versions, setVersions] = useState<DocumentVersion[]>([]);
   const [form, setForm] = useState<DocumentFormState>(emptyForm);
   const [error, setError] = useState<string | null>(null);
@@ -175,4 +175,9 @@ export default function DocumentsPage() {
       </section>
     </main>
   );
+}
+
+
+export default function DocumentsPage() {
+  return <DocumentsWorkspace />;
 }

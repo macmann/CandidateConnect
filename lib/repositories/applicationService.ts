@@ -2,10 +2,6 @@ import { Application, ApplicationInput, ApplicationStatus } from "@/lib/domain/a
 import { applicationRepository } from "@/lib/repositories/applicationRepository";
 
 function assertCreateInput(input: Partial<ApplicationInput>): asserts input is ApplicationInput {
-  if (!input.candidateName?.trim()) {
-    throw new Error("candidateName is required");
-  }
-
   if (!input.candidateEmail?.trim()) {
     throw new Error("candidateEmail is required");
   }
