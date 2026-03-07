@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { applicationRepository } from "@/lib/repositories/applicationRepository";
 import { documentRepository } from "@/lib/repositories/documentRepository";
 import { profileRepository } from "@/lib/repositories/profileRepository";
 
@@ -44,84 +43,75 @@ async function generateWithOpenAI(messages: OpenAIMessage[]): Promise<string> {
   return content;
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest) {
   try {
-    const { id } = await params;
-    const payload = (await request.json()) as { kind?: "CV" | "Cover" };
-    const kind = payload.kind;
-    if (kind !== "CV" && kind !== "Cover") {
+    const payload = (await request.json()) as {
+      kind?: "CV" | "Cover";
+      company?: string;
+      role?: string;
+      contactPerson?: string;
+      candidateName?: string;
+      candidateEmail?: string;
+      jobDescription?: string;
+      baseDocumentVersionId?: string;
+    };
+
+    if (payload.kind !== "CV" && payload.kind !== "Cover") {
       return NextResponse.json({ error: "kind must be CV or Cover" }, { status: 400 });
     }
 
-    const [application, profile] = await Promise.all([
-      applicationRepository.getById(id),
-      profileRepository.get(),
-    ]);
-
-    if (!application) {
-      return NextResponse.json({ error: "Application not found" }, { status: 404 });
+    if (!payload.company?.trim() || !payload.role?.trim() || !payload.jobDescription?.trim()) {
+      return NextResponse.json(
+        { error: "company, role, and jobDescription are required" },
+        { status: 400 },
+      );
     }
 
-    const selectedCv = application.cvDocumentVersionId
-      ? await documentRepository.getById(application.cvDocumentVersionId)
-      : null;
-    const selectedCover = application.coverDocumentVersionId
-      ? await documentRepository.getById(application.coverDocumentVersionId)
+    const profile = await profileRepository.get();
+    const selectedBaseVersion = payload.baseDocumentVersionId
+      ? await documentRepository.getById(payload.baseDocumentVersionId)
       : null;
 
-    const jdText = application.jobDescription.description;
-    const baseText =
-      kind === "CV"
-        ? selectedCv?.text ?? profile.cvBase
-        : selectedCover?.text ?? profile.coverLetterBase;
+    const fallbackBase = payload.kind === "CV" ? profile.cvBase : profile.coverLetterBase;
+    const baseText = selectedBaseVersion?.text ?? fallbackBase;
 
     if (!baseText?.trim()) {
-      throw new Error(`No base ${kind === "CV" ? "CV" : "cover letter"} text found`);
+      throw new Error(`No base ${payload.kind === "CV" ? "CV" : "cover letter"} text found`);
     }
 
     const generatedText = await generateWithOpenAI([
       {
         role: "system",
         content:
-          kind === "CV"
+          payload.kind === "CV"
             ? "You rewrite CV text for a single applicant. Keep it factual and ATS-friendly with strong impact bullets. Return plain text only."
             : "You rewrite cover letters for a single applicant. Make it specific to the role and company. Return plain text only.",
       },
       {
         role: "user",
         content: [
-          `Applicant: ${profile.name || application.candidateName}`,
-          `Applicant email: ${profile.email || application.candidateEmail}`,
-          `Contact person: ${application.contactPerson || "Not provided"}`,
-          `Company: ${application.company}`,
-          `Role: ${application.role}`,
+          `Applicant: ${payload.candidateName || profile.name || "Candidate"}`,
+          `Applicant email: ${payload.candidateEmail || profile.email || "Not provided"}`,
+          `Contact person: ${payload.contactPerson || "Not provided"}`,
+          `Company: ${payload.company}`,
+          `Role: ${payload.role}`,
           "Job description:",
-          jdText,
+          payload.jobDescription,
           "Base text:",
           baseText,
-          kind === "CV"
+          payload.kind === "CV"
             ? "Customize the CV for this role while preserving truthful claims."
             : "Customize the cover letter to this role and include a confident but concise tone.",
         ].join("\n\n"),
       },
     ]);
 
-    const version = await documentRepository.createVersion({
-      type: kind,
-      label: `${application.company} ${application.role} ${kind} (AI customized)`,
-      text: generatedText,
-    });
-
-    await applicationRepository.update(id, {
-      cvDocumentVersionId: kind === "CV" ? version.id : application.cvDocumentVersionId,
-      coverDocumentVersionId: kind === "Cover" ? version.id : application.coverDocumentVersionId,
-    });
-
-    return NextResponse.json({ version });
+    return NextResponse.json({ text: generatedText });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to customize document" },
+      { error: error instanceof Error ? error.message : "Failed to generate document" },
       { status: 400 },
     );
   }
 }
+

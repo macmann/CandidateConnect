@@ -71,6 +71,12 @@ function ApplicationsWorkspace() {
   const [kanbanRangeEnd, setKanbanRangeEnd] = useState("");
 
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const [cvDraft, setCvDraft] = useState("");
+  const [coverDraft, setCoverDraft] = useState("");
+  const [docActionState, setDocActionState] = useState<Record<"CV" | "Cover", string>>({
+    CV: "",
+    Cover: "",
+  });
 
   async function loadApplications() {
     setLoading(true);
@@ -228,6 +234,8 @@ function ApplicationsWorkspace() {
       status: application.status,
     });
 
+    setCvDraft("");
+    setCoverDraft("");
     await loadSnapshot(application.id);
   }
 
@@ -236,6 +244,9 @@ function ApplicationsWorkspace() {
     setEditingId(null);
     setCurrentSnapshot(null);
     setForm(emptyForm);
+    setCvDraft("");
+    setCoverDraft("");
+    setDocActionState({ CV: "", Cover: "" });
   }
 
   function openCreateDialog() {
@@ -247,6 +258,9 @@ function ApplicationsWorkspace() {
       cvDocumentVersionId: profileDefaults.defaultCvDocumentVersionId,
       coverDocumentVersionId: profileDefaults.defaultCoverDocumentVersionId,
     });
+    setCvDraft("");
+    setCoverDraft("");
+    setDocActionState({ CV: "", Cover: "" });
     setIsDialogOpen(true);
   }
 
@@ -331,6 +345,108 @@ function ApplicationsWorkspace() {
       return;
     }
 
+    await loadApplications();
+  }
+
+  async function generateDialogDocument(kind: "CV" | "Cover") {
+    setDocActionState((current) => ({ ...current, [kind]: "Generating..." }));
+    const response = await fetch("/api/documents/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind,
+        company: form.company,
+        role: form.role,
+        contactPerson: form.contactPerson,
+        candidateEmail: form.contactEmail,
+        jobDescription: form.description,
+        baseDocumentVersionId: kind === "CV" ? form.cvDocumentVersionId : form.coverDocumentVersionId,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      setDocActionState((current) => ({ ...current, [kind]: "" }));
+      setError(data.error ?? `Failed to generate ${kind}`);
+      return;
+    }
+
+    if (kind === "CV") {
+      setCvDraft(data.text ?? "");
+    } else {
+      setCoverDraft(data.text ?? "");
+    }
+    setDocActionState((current) => ({ ...current, [kind]: "Generated" }));
+  }
+
+  async function saveGeneratedDocument(kind: "CV" | "Cover") {
+    const text = kind === "CV" ? cvDraft : coverDraft;
+    if (!text.trim()) {
+      setError(`Generate or edit ${kind === "CV" ? "CV" : "cover letter"} first`);
+      return;
+    }
+
+    setDocActionState((current) => ({ ...current, [kind]: "Saving..." }));
+    const response = await fetch("/api/document-versions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: kind,
+        label: `${form.company || "Draft"} ${form.role || "Application"} ${kind} (${new Date().toLocaleDateString()})`,
+        text,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setDocActionState((current) => ({ ...current, [kind]: "" }));
+      setError(data.error ?? `Failed to save ${kind}`);
+      return;
+    }
+
+    const versionId = data.version?.id as string | undefined;
+    if (versionId) {
+      if (kind === "CV") {
+        setForm((current) => ({ ...current, cvDocumentVersionId: versionId }));
+      } else {
+        setForm((current) => ({ ...current, coverDocumentVersionId: versionId }));
+      }
+    }
+
+    setDocActionState((current) => ({ ...current, [kind]: "Saved" }));
+    await loadDocumentVersions();
+  }
+
+  function saveAsPdf(kind: "CV" | "Cover") {
+    const text = kind === "CV" ? cvDraft : coverDraft;
+    if (!text.trim()) {
+      setError(`No ${kind === "CV" ? "CV" : "cover letter"} content to export`);
+      return;
+    }
+
+    const printable = window.open("", "_blank");
+    if (!printable) return;
+    printable.document.write(`<!doctype html><html><head><title>${kind}</title></head><body><pre style="white-space:pre-wrap;font-family:Arial;padding:24px;line-height:1.45">${text.replace(/</g, "&lt;")}</pre></body></html>`);
+    printable.document.close();
+    printable.focus();
+    printable.print();
+  }
+
+  async function completeApplication() {
+    if (!editingId) {
+      setError("Save application before completing it.");
+      return;
+    }
+
+    const response = await fetch(`/api/applications/${editingId}/submit`, {
+      method: "POST",
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setError(data.error ?? "Failed to complete application");
+      return;
+    }
+
+    closeDialog();
     await loadApplications();
   }
 
@@ -426,8 +542,37 @@ function ApplicationsWorkspace() {
 
             {snapshotLoading && <p className="text-sm text-slate-500">Loading snapshot…</p>}
 
-            <div className="flex gap-2">
+            <div className="rounded border border-slate-200 p-3">
+              <h3 className="mb-2 text-sm font-semibold">Generate CV & Cover letter in this window</h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2 rounded border border-slate-100 p-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => generateDialogDocument("CV")}>Generate CV</button>
+                    <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => saveGeneratedDocument("CV")}>Save CV version</button>
+                    <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => saveAsPdf("CV")}>Save CV as PDF</button>
+                  </div>
+                  {docActionState.CV && <p className="text-xs text-slate-500">{docActionState.CV}</p>}
+                  <textarea className="min-h-40 w-full rounded border p-2 text-sm" placeholder="Generated CV will appear here. You can edit before saving." value={cvDraft} onChange={(event) => setCvDraft(event.target.value)} />
+                </div>
+                <div className="space-y-2 rounded border border-slate-100 p-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => generateDialogDocument("Cover")}>Generate cover letter</button>
+                    <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => saveGeneratedDocument("Cover")}>Save cover version</button>
+                    <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => saveAsPdf("Cover")}>Save cover as PDF</button>
+                  </div>
+                  {docActionState.Cover && <p className="text-xs text-slate-500">{docActionState.Cover}</p>}
+                  <textarea className="min-h-40 w-full rounded border p-2 text-sm" placeholder="Generated cover letter will appear here. You can edit before saving." value={coverDraft} onChange={(event) => setCoverDraft(event.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
               <button className="rounded-lg bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800" type="submit">Save application</button>
+              {editingId && (
+                <button type="button" className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-emerald-700 transition hover:bg-emerald-100" onClick={completeApplication}>
+                  Complete application (mark today)
+                </button>
+              )}
               <button type="button" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-700 transition hover:bg-slate-50" onClick={closeDialog}>
                 Cancel
               </button>

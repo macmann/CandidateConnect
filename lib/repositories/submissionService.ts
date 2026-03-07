@@ -61,6 +61,7 @@ export class SubmissionService {
       jobDescriptionSnapshotRepository.lockByApplicationId(applicationId),
       applicationRepository.update(applicationId, {
         status: application.status === "Saved" ? "Applied" : application.status,
+        applied_date: application.applied_date || new Date().toISOString().slice(0, 10),
       }),
     ]);
 
