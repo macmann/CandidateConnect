@@ -17,7 +17,7 @@ export type InterviewRoundStatus =
   | "Failed"
   | "Cancelled";
 
-export type InterviewMode = "Zoom" | "Onsite" | "Phone";
+export type InterviewMode = "Online" | "Onsite" | "Phone";
 
 export interface InterviewRound {
   id: string;
