@@ -11,10 +11,8 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@google/adk": "^0.3.0",
     "@google/genai": "^1.41.0",
     "@mdx-js/mdx": "3.0.1",
-    "@xyflow/react": "^12.10.0",
     "clsx": "2.1.1",
     "gray-matter": "4.0.3",
     "lucide-react": "^0.574.0",
@@ -25,8 +23,7 @@
     "rehype-autolink-headings": "7.1.0",
     "rehype-slug": "6.0.0",
     "remark-gfm": "4.0.0",
-    "tailwind-merge": "2.5.4",
-    "zustand": "^5.0.11"
+    "tailwind-merge": "2.5.4"
   },
   "devDependencies": {
     "@types/node": "22.13.1",
