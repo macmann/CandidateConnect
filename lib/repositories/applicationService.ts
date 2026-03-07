@@ -27,6 +27,7 @@ function hasFrozenFieldChanges(input: Partial<ApplicationInput>): boolean {
   return Boolean(
     input.candidateName !== undefined ||
       input.candidateEmail !== undefined ||
+      input.contactPerson !== undefined ||
       input.jobDescription !== undefined ||
       input.cvDocumentVersionId !== undefined ||
       input.coverDocumentVersionId !== undefined ||

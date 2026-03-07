@@ -17,6 +17,8 @@ npm run dev
 
 Open `http://localhost:3000` to view the app.
 
+Create `.env.local` from `.env.example` and set `OPENAI_API_KEY` for AI-customized CV/Cover generation.
+
 ## Available scripts
 
 ```bash
@@ -38,3 +40,11 @@ This repository includes a `render.yaml` Blueprint so Render can automatically c
 4. Deploy.
 
 The application is configured to run on the `PORT` provided by Render.
+
+
+## Product workflow
+
+- **Profile**: store one-user base information (name, email, base CV text, CV notes, base cover letter).
+- **Applications**: add each application with job link, company, JD, contact person, status, and optional expected salary.
+- **Customization**: from each application row, generate a customized CV and cover letter using OpenAI and attach them automatically.
+- **Dashboard filters**: view counts for today/yesterday and filter by date range + status.
