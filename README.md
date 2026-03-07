@@ -1,13 +1,12 @@
 # CandidateConnect OSS
 
-Open-source workspace for building and testing candidate workflow automations with a visual builder.
+Open-source workspace for managing job applications and interview preparation.
 
 ## Stack
 
 - Next.js (App Router)
 - TypeScript
 - Tailwind CSS
-- React Flow (`@xyflow/react`) for workflow editing
 
 ## Quick start
 
