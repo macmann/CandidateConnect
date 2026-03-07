@@ -9,6 +9,7 @@ function normalizePayload(payload: Record<string, unknown>): Partial<Application
     candidateName: String(payload.candidateName ?? ""),
     candidateEmail: String(payload.candidateEmail ?? ""),
     contactPerson: String(payload.contactPerson ?? ""),
+    sourcePlatform: String(payload.sourcePlatform ?? ""),
     company: String(payload.company ?? jobDescription.company ?? ""),
     role: String(payload.role ?? jobDescription.title ?? ""),
     location: String(payload.location ?? jobDescription.location ?? ""),
@@ -17,6 +18,8 @@ function normalizePayload(payload: Record<string, unknown>): Partial<Application
     salary_expectation: String(payload.salary_expectation ?? payload.salaryExpectation ?? ""),
     applied_date: String(payload.applied_date ?? ""),
     notes: String(payload.notes ?? ""),
+    cvSubmitted: Boolean(payload.cvSubmitted),
+    coverLetterSubmitted: Boolean(payload.coverLetterSubmitted),
     jobDescription: {
       title: String(payload.role ?? jobDescription.title ?? ""),
       company: String(payload.company ?? jobDescription.company ?? ""),

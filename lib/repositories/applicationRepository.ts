@@ -29,6 +29,9 @@ type LegacyApplicationRecord = Partial<Application> & {
   notes?: string;
   created_at?: string;
   updated_at?: string;
+  sourcePlatform?: string;
+  cvSubmitted?: boolean;
+  coverLetterSubmitted?: boolean;
 };
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -94,6 +97,9 @@ function createApplication(input: ApplicationInput): Application {
     candidateName: input.candidateName,
     candidateEmail: input.candidateEmail,
     contactPerson: input.contactPerson?.trim() ?? "",
+    sourcePlatform: input.sourcePlatform?.trim() || "",
+    cvSubmitted: Boolean(input.cvSubmitted),
+    coverLetterSubmitted: Boolean(input.coverLetterSubmitted),
     status: input.status ?? "Saved",
     jobDescription: {
       ...input.jobDescription,
@@ -131,6 +137,9 @@ function mergeApplication(existing: Application, patch: Partial<ApplicationInput
     candidateName: patch.candidateName ?? existing.candidateName,
     candidateEmail: patch.candidateEmail ?? existing.candidateEmail,
     contactPerson: patch.contactPerson ?? existing.contactPerson,
+    sourcePlatform: patch.sourcePlatform ?? existing.sourcePlatform ?? "",
+    cvSubmitted: patch.cvSubmitted ?? existing.cvSubmitted ?? false,
+    coverLetterSubmitted: patch.coverLetterSubmitted ?? existing.coverLetterSubmitted ?? false,
     status: patch.status ?? existing.status,
     salary_expectation: nextSalary,
     applied_date: patch.applied_date ?? existing.applied_date,
@@ -190,6 +199,9 @@ function normalizeApplication(raw: LegacyApplicationRecord): Application {
     candidateName: raw.candidateName ?? "",
     candidateEmail: raw.candidateEmail ?? "",
     contactPerson: raw.contactPerson ?? "",
+    sourcePlatform: raw.sourcePlatform ?? "",
+    cvSubmitted: raw.cvSubmitted ?? false,
+    coverLetterSubmitted: raw.coverLetterSubmitted ?? false,
     jobDescription: {
       title: role,
       company,

@@ -155,6 +155,9 @@ export interface Application {
   candidateName: string;
   candidateEmail: string;
   contactPerson: string;
+  sourcePlatform?: string;
+  cvSubmitted: boolean;
+  coverLetterSubmitted: boolean;
   jobDescription: JobDescriptionSnapshot;
   fieldAnswers: FieldAnswer[];
   submissionSnapshot?: SubmissionSnapshot;
@@ -170,6 +173,7 @@ export interface ApplicationInput {
   candidateName: string;
   candidateEmail: string;
   contactPerson?: string;
+  sourcePlatform?: string;
   company: string;
   role: string;
   location?: string;
@@ -178,6 +182,8 @@ export interface ApplicationInput {
   salary_expectation?: string;
   applied_date?: string;
   notes?: string;
+  cvSubmitted?: boolean;
+  coverLetterSubmitted?: boolean;
   created_at?: string;
   jobDescription: Omit<JobDescriptionSnapshot, "capturedAt"> & {
     capturedAt?: string;
