@@ -3,6 +3,12 @@ import Link from "next/link";
 export default function HomePage() {
   const categories = [
     {
+      title: "Profile",
+      description: "Maintain your base CV, CV notes, and cover letter used for AI customization.",
+      href: "/profile",
+      cta: "Open Profile",
+    },
+    {
       title: "Applications",
       description: "Track every role, stage, and application status in one place.",
       href: "/applications",
@@ -35,7 +41,7 @@ export default function HomePage() {
         </p>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {categories.map((category) => (
           <article
             key={category.title}
@@ -54,8 +60,7 @@ export default function HomePage() {
       </section>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm">
-        Tip: Start with <span className="font-semibold text-slate-800">Applications</span> to
-        update your current pipeline, then attach supporting files in Documents.
+        Tip: Start with <span className="font-semibold text-slate-800">Profile</span> to save your base CV and cover letter, then use <span className="font-semibold text-slate-800">Applications</span> to generate customized versions per job.
       </div>
     </div>
   );

@@ -154,6 +154,7 @@ export interface Application {
 
   candidateName: string;
   candidateEmail: string;
+  contactPerson: string;
   jobDescription: JobDescriptionSnapshot;
   fieldAnswers: FieldAnswer[];
   submissionSnapshot?: SubmissionSnapshot;
@@ -168,6 +169,7 @@ export interface Application {
 export interface ApplicationInput {
   candidateName: string;
   candidateEmail: string;
+  contactPerson?: string;
   company: string;
   role: string;
   location?: string;

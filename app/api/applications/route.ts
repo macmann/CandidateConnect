@@ -8,6 +8,7 @@ function normalizePayload(payload: Record<string, unknown>): Partial<Application
   return {
     candidateName: String(payload.candidateName ?? ""),
     candidateEmail: String(payload.candidateEmail ?? ""),
+    contactPerson: String(payload.contactPerson ?? ""),
     company: String(payload.company ?? jobDescription.company ?? ""),
     role: String(payload.role ?? jobDescription.title ?? ""),
     location: String(payload.location ?? jobDescription.location ?? ""),

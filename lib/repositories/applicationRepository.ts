@@ -19,6 +19,7 @@ type LegacyApplicationRecord = Partial<Application> & {
   id?: string;
   candidateName?: string;
   candidateEmail?: string;
+  contactPerson?: string;
   company?: string;
   role?: string;
   location?: string;
@@ -92,6 +93,7 @@ function createApplication(input: ApplicationInput): Application {
     updated_at: timestamp,
     candidateName: input.candidateName,
     candidateEmail: input.candidateEmail,
+    contactPerson: input.contactPerson?.trim() ?? "",
     status: input.status ?? "Saved",
     jobDescription: {
       ...input.jobDescription,
@@ -128,6 +130,7 @@ function mergeApplication(existing: Application, patch: Partial<ApplicationInput
     job_url: nextJobUrl,
     candidateName: patch.candidateName ?? existing.candidateName,
     candidateEmail: patch.candidateEmail ?? existing.candidateEmail,
+    contactPerson: patch.contactPerson ?? existing.contactPerson,
     status: patch.status ?? existing.status,
     salary_expectation: nextSalary,
     applied_date: patch.applied_date ?? existing.applied_date,
@@ -186,6 +189,7 @@ function normalizeApplication(raw: LegacyApplicationRecord): Application {
     updated_at: updatedAt,
     candidateName: raw.candidateName ?? "",
     candidateEmail: raw.candidateEmail ?? "",
+    contactPerson: raw.contactPerson ?? "",
     jobDescription: {
       title: role,
       company,

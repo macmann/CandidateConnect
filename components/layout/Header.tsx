@@ -19,6 +19,12 @@ export function Header() {
           </Link>
           <Link
             className="rounded-lg px-3 py-1.5 text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+            href="/profile"
+          >
+            Profile
+          </Link>
+          <Link
+            className="rounded-lg px-3 py-1.5 text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
             href="/documents"
           >
             Documents

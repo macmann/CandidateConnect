@@ -10,6 +10,8 @@ function normalizePayload(payload: Record<string, unknown>): Partial<Application
       payload.candidateName === undefined ? undefined : String(payload.candidateName ?? ""),
     candidateEmail:
       payload.candidateEmail === undefined ? undefined : String(payload.candidateEmail ?? ""),
+    contactPerson:
+      payload.contactPerson === undefined ? undefined : String(payload.contactPerson ?? ""),
     company: payload.company === undefined ? undefined : String(payload.company ?? ""),
     role: payload.role === undefined ? undefined : String(payload.role ?? ""),
     location: payload.location === undefined ? undefined : String(payload.location ?? ""),
