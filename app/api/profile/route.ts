@@ -15,6 +15,14 @@ export async function PUT(request: NextRequest) {
       cvBase: String(payload.cvBase ?? ""),
       cvVersionsBaseNotes: String(payload.cvVersionsBaseNotes ?? ""),
       coverLetterBase: String(payload.coverLetterBase ?? ""),
+      defaultCvDocumentVersionId:
+        typeof payload.defaultCvDocumentVersionId === "string"
+          ? payload.defaultCvDocumentVersionId
+          : undefined,
+      defaultCoverDocumentVersionId:
+        typeof payload.defaultCoverDocumentVersionId === "string"
+          ? payload.defaultCoverDocumentVersionId
+          : undefined,
     });
     return NextResponse.json({ profile });
   } catch (error) {
