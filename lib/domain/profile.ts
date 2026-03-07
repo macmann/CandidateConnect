@@ -4,6 +4,8 @@ export interface UserProfile {
   cvBase: string;
   cvVersionsBaseNotes: string;
   coverLetterBase: string;
+  defaultCvDocumentVersionId?: string;
+  defaultCoverDocumentVersionId?: string;
   updatedAt: string;
 }
 
@@ -13,4 +15,6 @@ export interface UserProfileInput {
   cvBase: string;
   cvVersionsBaseNotes?: string;
   coverLetterBase: string;
+  defaultCvDocumentVersionId?: string;
+  defaultCoverDocumentVersionId?: string;
 }

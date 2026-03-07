@@ -8,6 +8,12 @@ import { JobDescriptionSnapshot } from "@/lib/domain/jobDescriptionSnapshot";
 type SortKey = "company" | "location" | "status" | "updated_at";
 type ViewMode = "kanban" | "list";
 
+interface ProfileDefaults {
+  email: string;
+  defaultCvDocumentVersionId: string;
+  defaultCoverDocumentVersionId: string;
+}
+
 const statuses: ApplicationStatus[] = ["Saved", "Applied", "Interview", "Offer", "Rejected"];
 
 const emptyForm = {
@@ -46,6 +52,11 @@ function ApplicationsWorkspace() {
   const [currentSnapshot, setCurrentSnapshot] = useState<JobDescriptionSnapshot | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [profileDefaults, setProfileDefaults] = useState<ProfileDefaults>({
+    email: "",
+    defaultCvDocumentVersionId: "",
+    defaultCoverDocumentVersionId: "",
+  });
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [sortAscending, setSortAscending] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
@@ -85,6 +96,18 @@ function ApplicationsWorkspace() {
     }
   }
 
+  async function loadProfileDefaults() {
+    const response = await fetch("/api/profile", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) return;
+
+    setProfileDefaults({
+      email: data.profile?.email ?? "",
+      defaultCvDocumentVersionId: data.profile?.defaultCvDocumentVersionId ?? "",
+      defaultCoverDocumentVersionId: data.profile?.defaultCoverDocumentVersionId ?? "",
+    });
+  }
+
   async function loadSnapshot(applicationId: string) {
     setSnapshotLoading(true);
     const response = await fetch(`/api/applications/${applicationId}/job-description-snapshot`, {
@@ -112,6 +135,7 @@ function ApplicationsWorkspace() {
   useEffect(() => {
     loadApplications();
     loadDocumentVersions();
+    loadProfileDefaults();
   }, []);
 
   const sorted = useMemo(() => {
@@ -212,6 +236,18 @@ function ApplicationsWorkspace() {
     setEditingId(null);
     setCurrentSnapshot(null);
     setForm(emptyForm);
+  }
+
+  function openCreateDialog() {
+    setEditingId(null);
+    setCurrentSnapshot(null);
+    setForm({
+      ...emptyForm,
+      contactEmail: profileDefaults.email,
+      cvDocumentVersionId: profileDefaults.defaultCvDocumentVersionId,
+      coverDocumentVersionId: profileDefaults.defaultCoverDocumentVersionId,
+    });
+    setIsDialogOpen(true);
   }
 
   async function onSubmit(event: FormEvent) {
@@ -329,7 +365,7 @@ function ApplicationsWorkspace() {
           <button
             type="button"
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-            onClick={() => setIsDialogOpen(true)}
+            onClick={openCreateDialog}
           >
             Create Application
           </button>
