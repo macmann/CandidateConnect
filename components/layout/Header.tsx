@@ -13,6 +13,12 @@ export function Header() {
         <nav className="flex items-center gap-2 text-sm">
           <Link
             className="rounded-lg px-3 py-1.5 text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+            href="/"
+          >
+            Workspace
+          </Link>
+          <Link
+            className="rounded-lg px-3 py-1.5 text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
             href="/applications"
           >
             Applications
@@ -22,18 +28,6 @@ export function Header() {
             href="/profile"
           >
             Profile
-          </Link>
-          <Link
-            className="rounded-lg px-3 py-1.5 text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
-            href="/documents"
-          >
-            Documents
-          </Link>
-          <Link
-            className="rounded-lg px-3 py-1.5 text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
-            href="/insights"
-          >
-            Insights
           </Link>
         </nav>
       </div>

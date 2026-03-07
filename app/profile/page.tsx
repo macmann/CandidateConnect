@@ -18,7 +18,7 @@ const emptyProfile: ProfileState = {
   coverLetterBase: "",
 };
 
-export default function ProfilePage() {
+export function ProfileWorkspace() {
   const [profile, setProfile] = useState<ProfileState>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -84,8 +84,7 @@ export default function ProfilePage() {
       <form onSubmit={onSubmit} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid gap-2 md:grid-cols-2">
           <input
-            required
-            placeholder="Your name"
+            placeholder="Your name (optional)"
             className="rounded border p-2"
             value={profile.name}
             onChange={(event) => setProfile((prev) => ({ ...prev, name: event.target.value }))}
@@ -136,4 +135,9 @@ export default function ProfilePage() {
       {error && <p className="rounded border border-red-300 bg-red-50 p-3 text-red-700">{error}</p>}
     </main>
   );
+}
+
+
+export default function ProfilePage() {
+  return <ProfileWorkspace />;
 }

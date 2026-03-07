@@ -1,67 +1,63 @@
-import Link from "next/link";
+"use client";
+
+import { useState } from "react";
+import { ApplicationsWorkspace } from "@/app/applications/page";
+import { DocumentsWorkspace } from "@/app/documents/page";
+import { ProfileWorkspace } from "@/app/profile/page";
+
+type TabKey = "profile" | "applications" | "analytics";
 
 export default function HomePage() {
-  const categories = [
-    {
-      title: "Profile",
-      description: "Maintain your base CV, CV notes, and cover letter used for AI customization.",
-      href: "/profile",
-      cta: "Open Profile",
-    },
-    {
-      title: "Applications",
-      description: "Track every role, stage, and application status in one place.",
-      href: "/applications",
-      cta: "Open Applications",
-    },
-    {
-      title: "Documents",
-      description: "Manage CV and cover letter versions tailored to each opportunity.",
-      href: "/documents",
-      cta: "Open Documents",
-    },
-    {
-      title: "Insights",
-      description: "Review interview prep notes, article insights, and learning summaries.",
-      href: "/insights",
-      cta: "Open Insights",
-    },
-  ];
+  const [activeTab, setActiveTab] = useState<TabKey>("profile");
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <section className="rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-sm md:p-10">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">Overview</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">Workspace</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
-          Dashboard
+          CandidateConnect
         </h1>
         <p className="mt-3 max-w-3xl text-base text-slate-600 md:text-lg">
-          Welcome to CandidateConnect. Use the dashboard below to navigate directly to each
-          sub-category of your workflow.
+          Use tabs to manage your profile data (including CV/cover letter versions) and your job
+          applications with status and location tracking.
         </p>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {categories.map((category) => (
-          <article
-            key={category.title}
-            className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+      <div className="flex flex-wrap gap-2">
+        {[
+          ["profile", "My Profile"],
+          ["applications", "Applications"],
+          ["analytics", "Analytics"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveTab(key as TabKey)}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              activeTab === key
+                ? "bg-slate-900 text-white"
+                : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
           >
-            <h2 className="text-xl font-semibold text-slate-900">{category.title}</h2>
-            <p className="mt-2 flex-1 text-sm text-slate-600">{category.description}</p>
-            <Link
-              href={category.href}
-              className="mt-5 inline-flex w-fit rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-100"
-            >
-              {category.cta}
-            </Link>
-          </article>
+            {label}
+          </button>
         ))}
-      </section>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm">
-        Tip: Start with <span className="font-semibold text-slate-800">Profile</span> to save your base CV and cover letter, then use <span className="font-semibold text-slate-800">Applications</span> to generate customized versions per job.
       </div>
+
+      {activeTab === "profile" && (
+        <div className="space-y-6">
+          <ProfileWorkspace />
+          <DocumentsWorkspace />
+        </div>
+      )}
+
+      {activeTab === "applications" && <ApplicationsWorkspace />}
+
+      {activeTab === "analytics" && (
+        <section className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+          Analytics is intentionally deferred for now.
+        </section>
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Application, ApplicationStatus, DocumentVersion } from "@/lib/domain/application";
 import { JobDescriptionSnapshot } from "@/lib/domain/jobDescriptionSnapshot";
 
-type SortKey = "candidateName" | "company" | "status" | "updated_at";
+type SortKey = "company" | "location" | "status" | "updated_at";
 
 const statuses: ApplicationStatus[] = ["Saved", "Applied", "Interview", "Offer", "Rejected"];
 
@@ -33,7 +33,7 @@ function dateKey(value: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-export default function ApplicationsPage() {
+export function ApplicationsWorkspace() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [documentVersions, setDocumentVersions] = useState<DocumentVersion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,7 +180,7 @@ export default function ApplicationsPage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     const payload = {
-      candidateName: form.candidateName,
+      candidateName: form.candidateName || "Me",
       candidateEmail: form.candidateEmail,
       contactPerson: form.contactPerson,
       company: form.company,
@@ -307,7 +307,7 @@ export default function ApplicationsPage() {
       <form onSubmit={onSubmit} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-xl font-medium">{editingId ? "Edit" : "Create"} application</h2>
         <div className="grid gap-2 md:grid-cols-2">
-          <input required placeholder="Candidate name" className="rounded border p-2" value={form.candidateName} onChange={(e) => setForm((f) => ({ ...f, candidateName: e.target.value }))} />
+          <input placeholder="Candidate name (optional)" className="rounded border p-2" value={form.candidateName} onChange={(e) => setForm((f) => ({ ...f, candidateName: e.target.value }))} />
           <input required type="email" placeholder="Candidate email" className="rounded border p-2" value={form.candidateEmail} onChange={(e) => setForm((f) => ({ ...f, candidateEmail: e.target.value }))} />
           <input placeholder="Contact person" className="rounded border p-2" value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
           <input required placeholder="Role" className="rounded border p-2" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} />
@@ -377,7 +377,7 @@ export default function ApplicationsPage() {
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr>
-                  {[ ["candidateName", "Candidate"], ["company", "Company"], ["status", "Status"], ["updated_at", "Updated"] ].map(([key, label]) => (
+                  {[ ["company", "Company"], ["location", "Location"], ["status", "Status"], ["updated_at", "Updated"] ].map(([key, label]) => (
                     <th key={key} className="cursor-pointer border-b px-2 py-2" onClick={() => {
                       const typedKey = key as SortKey;
                       if (typedKey === sortKey) setSortAscending((x) => !x);
@@ -391,8 +391,8 @@ export default function ApplicationsPage() {
               <tbody>
                 {filtered.map((application) => (
                   <tr key={application.id} className="border-b">
-                    <td className="px-2 py-2">{application.candidateName}</td>
                     <td className="px-2 py-2">{application.company}</td>
+                    <td className="px-2 py-2">{application.location || "—"}</td>
                     <td className="px-2 py-2">{application.status}{application.submissionSnapshot ? " (Completed)" : ""}</td>
                     <td className="px-2 py-2">{new Date(application.updated_at).toLocaleString()}</td>
                     <td className="px-2 py-2 text-xs text-slate-600">
@@ -431,7 +431,7 @@ export default function ApplicationsPage() {
               <div className="space-y-2">
                 {grouped[status].map((application) => (
                   <div key={application.id} draggable onDragStart={(event) => event.dataTransfer.setData("text/plain", application.id)} className="cursor-grab rounded border bg-white p-2 text-sm">
-                    <p className="font-medium">{application.candidateName}</p>
+                    <p className="font-medium">{application.company}</p>
                     <p className="text-slate-600">{application.role}</p>
                     <p className="text-slate-500">{application.company}</p>
                     <p className="text-slate-500">{application.applied_date || "Not applied"}</p>
@@ -444,4 +444,9 @@ export default function ApplicationsPage() {
       </section>
     </main>
   );
+}
+
+
+export default function ApplicationsPage() {
+  return <ApplicationsWorkspace />;
 }
