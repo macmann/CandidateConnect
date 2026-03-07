@@ -20,8 +20,11 @@ The platform currently uses a **file-based JSON repository pattern** under `lib/
 
 The repository now supports **Neon-backed persistence for profile + document repositories**.
 
-- `profileRepository` reads/writes `profiles` when Neon SQL HTTP env vars are configured.
+- `profileRepository` reads/writes `profiles` when Neon env configuration is provided.
 - `documentRepository` reads/writes `document_versions` and `application_documents` when configured.
+- Supported env options:
+  - preferred: `DATABASE_URL` (standard Neon Postgres URL)
+  - optional explicit: `NEON_SQL_ENDPOINT` + `NEON_SQL_API_KEY`
 - If Neon config is missing, both repositories automatically fall back to local JSON files.
 
 This lets you migrate CV/profile paths first without breaking existing workflows.
@@ -30,7 +33,7 @@ This lets you migrate CV/profile paths first without breaking existing workflows
 
 Use Neon Postgres as the system of record for all repository-backed entities.
 
-1. Configure SQL HTTP credentials (`NEON_SQL_ENDPOINT` + `NEON_SQL_API_KEY`).
+1. Configure Neon credentials using `DATABASE_URL` (recommended) or `NEON_SQL_ENDPOINT` + `NEON_SQL_API_KEY`.
 2. Apply `db/neon-schema.sql`.
 3. Migrate JSON data into Postgres with a one-time script.
 4. Replace file-based repositories with SQL-backed repositories, one aggregate at a time:
@@ -50,6 +53,9 @@ Use Neon Postgres as the system of record for all repository-backed entities.
 
 ```bash
 # JSON fallback stays active when these are not set
+DATABASE_URL=postgresql://neondb_owner:<password>@ep-...-pooler....neon.tech/neondb?sslmode=require&channel_binding=require
+
+# Optional explicit SQL-over-HTTP mode (takes precedence if set)
 NEON_SQL_ENDPOINT=https://<your-neon-sql-http-endpoint>
 NEON_SQL_API_KEY=<your-neon-sql-http-api-key>
 ```

@@ -19,7 +19,9 @@ Open `http://localhost:3000` to view the app.
 
 Create `.env.local` from `.env.example` and set `OPENAI_API_KEY` for AI-customized CV/Cover generation.
 
-For Neon-backed storage of CV/profile data, also set `NEON_SQL_ENDPOINT` and `NEON_SQL_API_KEY`.
+For Neon-backed storage of CV/profile data, set `DATABASE_URL` (Neon pooler URL).
+
+You can also use explicit Neon SQL-over-HTTP settings (`NEON_SQL_ENDPOINT` + `NEON_SQL_API_KEY`), which take precedence when both are present.
 
 ## Available scripts
 
