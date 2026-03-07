@@ -1,6 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
-import { prepRepository } from "@/lib/repositories/prepRepository";
 import { RoundDebrief } from "@/lib/domain/application";
+import { prepRepository } from "@/lib/repositories/prepRepository";
 
 interface DebriefInput {
   roundId: string;
@@ -14,6 +13,13 @@ interface DebriefInput {
   followUpReminderCompleted?: boolean;
   takeHomeChecklist?: RoundDebrief["structured_fields"]["take_home_checklist"];
 }
+
+type DebriefGeneration = {
+  summary: string;
+  improvements: string;
+  nextRoundFocus: string;
+  thankYouEmail: string;
+};
 
 export class DebriefService {
   async create(input: DebriefInput) {
@@ -32,36 +38,93 @@ export class DebriefService {
       },
     });
 
-    let generated_summary = `Summary: ${input.wentWell || "Round completed."}`;
-    let improvements = `- Improve: ${input.toImprove || "Refine concise examples"}`;
-    let next_round_focus = "- Focus on stronger quantified outcomes and role-specific depth.";
-    let thank_you_email = `Hi team, thank you for the conversation today. I enjoyed discussing the role and remain very excited about the opportunity.`;
+    const fallback = {
+      summary: `Summary: ${input.wentWell || "Round completed."}`,
+      improvements: `- Improve: ${input.toImprove || "Refine concise examples"}`,
+      nextRoundFocus: "- Focus on stronger quantified outcomes and role-specific depth.",
+      thankYouEmail:
+        "Hi team, thank you for the conversation today. I enjoyed discussing the role and remain very excited about the opportunity.",
+    };
 
-    if (process.env.GOOGLE_GENAI_API_KEY) {
-      try {
-        const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GENAI_API_KEY });
-        const response = await ai.models.generateContent({
-          model: "gemini-1.5-flash",
-          contents: `Create four sections: summary, improvements, next_round_focus, thank_you_email from this debrief data:\n${JSON.stringify(input, null, 2)}`,
-        });
-        const text = response.text ?? "";
-        if (text.trim()) {
-          generated_summary = text;
-        }
-      } catch (error) {
-        console.error("Debrief AI generation failed", error);
-      }
-    }
+    const generated = (await this.generateWithOpenAI(input)) ?? fallback;
 
     const artifact = await prepRepository.saveDebriefArtifact({
       round_id: input.roundId,
-      generated_summary,
-      improvements,
-      next_round_focus,
-      thank_you_email,
+      generated_summary: generated.summary,
+      improvements: generated.improvements,
+      next_round_focus: generated.nextRoundFocus,
+      thank_you_email: generated.thankYouEmail,
     });
 
     return { debrief, artifact };
+  }
+
+  private async generateWithOpenAI(input: DebriefInput): Promise<DebriefGeneration | null> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return null;
+    }
+
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-5",
+          temperature: 0.3,
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "debrief_generation",
+              strict: true,
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  summary: { type: "string" },
+                  improvements: { type: "string" },
+                  nextRoundFocus: { type: "string" },
+                  thankYouEmail: { type: "string" },
+                },
+                required: ["summary", "improvements", "nextRoundFocus", "thankYouEmail"],
+              },
+            },
+          },
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are an interview coach. Convert interviewer notes into actionable interview tips and a practical round plan.",
+            },
+            {
+              role: "user",
+              content: `Generate concise, high-quality outputs from this interview debrief payload:\n${JSON.stringify(input, null, 2)}`,
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI request failed with status ${response.status}`);
+      }
+
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+
+      const rawContent = data.choices?.[0]?.message?.content?.trim();
+      if (!rawContent) {
+        return null;
+      }
+
+      return JSON.parse(rawContent) as DebriefGeneration;
+    } catch (error) {
+      console.error("Debrief AI generation failed", error);
+      return null;
+    }
   }
 
   async patchTracking(

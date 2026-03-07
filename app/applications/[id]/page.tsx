@@ -41,6 +41,15 @@ const roundStatuses: InterviewRoundStatus[] = [
   "Cancelled",
 ];
 
+const timezoneOptions =
+  typeof Intl !== "undefined" && "supportedValuesOf" in Intl
+    ? Intl.supportedValuesOf("timeZone")
+    : ["UTC"];
+
+function getRoundTabLabel(round: InterviewRound) {
+  return `Round ${round.round_index} - ${round.round_type}`;
+}
+
 function toDatetimeLocalValue(iso?: string) {
   if (!iso) return "";
   const date = new Date(iso);
@@ -105,6 +114,7 @@ export default function ApplicationDetailPage() {
     Record<string, { saving: boolean; message?: string; error?: string }>
   >({});
   const [copiedState, setCopiedState] = useState<Record<string, string>>({});
+  const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [applicationRes, roundsRes, interviewerRes, activityRes] = await Promise.all([
@@ -215,6 +225,17 @@ export default function ApplicationDetailPage() {
   useEffect(() => {
     if (id) load();
   }, [id, load]);
+
+  useEffect(() => {
+    if (rounds.length === 0) {
+      setActiveRoundId(null);
+      return;
+    }
+
+    if (!activeRoundId || !rounds.some((round) => round.id === activeRoundId)) {
+      setActiveRoundId(rounds[0].id);
+    }
+  }, [activeRoundId, rounds]);
 
   const isSubmitted = useMemo(() => Boolean(application?.submissionSnapshot), [application]);
 
@@ -452,12 +473,17 @@ export default function ApplicationDetailPage() {
             value={datetime}
             onChange={(e) => setDatetime(e.target.value)}
           />
-          <input
+          <select
             className="rounded border p-2"
-            placeholder="Timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
-          />
+          >
+            {timezoneOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
           <select
             className="rounded border p-2"
             value={mode}
@@ -482,8 +508,21 @@ export default function ApplicationDetailPage() {
           <button className="rounded bg-black px-3 py-2 text-white md:col-span-3">Add round</button>
         </form>
 
+        <div className="mt-4 flex flex-wrap gap-2">
+          {rounds.map((round) => (
+            <button
+              key={round.id}
+              type="button"
+              className={`rounded border px-3 py-1 text-sm ${activeRoundId === round.id ? "bg-zinc-900 text-white" : "bg-white"}`}
+              onClick={() => setActiveRoundId(round.id)}
+            >
+              {getRoundTabLabel(round)}
+            </button>
+          ))}
+        </div>
+
         <div className="mt-3 space-y-3">
-          {rounds.map((round) => {
+          {rounds.filter((round) => round.id === activeRoundId).map((round) => {
             const prep = prepByRound[round.id] ?? [];
             const debriefEntries = debriefByRound[round.id] ?? [];
             const latestDebrief = debriefEntries[debriefEntries.length - 1];
@@ -496,9 +535,7 @@ export default function ApplicationDetailPage() {
             return (
               <article key={round.id} className="rounded border p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium">
-                    Round {round.round_index}: {round.round_type}
-                  </p>
+                  <p className="font-medium">{getRoundTabLabel(round)}</p>
                   <p className="text-sm text-zinc-600">
                     {round.scheduled_at
                       ? new Date(round.scheduled_at).toLocaleString()
@@ -544,12 +581,17 @@ export default function ApplicationDetailPage() {
                     value={edit.scheduled_at}
                     onChange={(e) => updateRoundEdit(round.id, "scheduled_at", e.target.value)}
                   />
-                  <input
+                  <select
                     className="rounded border p-2 text-sm"
-                    placeholder="Timezone"
                     value={edit.timezone}
                     onChange={(e) => updateRoundEdit(round.id, "timezone", e.target.value)}
-                  />
+                  >
+                    {timezoneOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                   <select
                     className="rounded border p-2 text-sm"
                     value={edit.mode}
@@ -823,6 +865,9 @@ export default function ApplicationDetailPage() {
                         }
                       />
                     ))}
+                    <p className="text-xs text-zinc-500">
+                      Paste interviewer email notes above to generate interview tips and a round plan.
+                    </p>
                     <button
                       className="rounded border px-2 py-1 text-xs"
                       onClick={() => saveDebrief(round.id)}
