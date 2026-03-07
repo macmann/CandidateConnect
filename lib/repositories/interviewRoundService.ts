@@ -25,7 +25,7 @@ const validStatuses: InterviewRoundStatus[] = [
   "Failed",
   "Cancelled",
 ];
-const validModes: InterviewMode[] = ["Zoom", "Onsite", "Phone"];
+const validModes: InterviewMode[] = ["Online", "Onsite", "Phone"];
 
 function normalizeInput(payload: Partial<InterviewRoundInput>): InterviewRoundInput {
   const roundType = String(payload.round_type ?? "").trim() as InterviewRoundType;
