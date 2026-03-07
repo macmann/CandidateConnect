@@ -97,10 +97,22 @@ function getPrepSections(text: string) {
   return {
     prep_notes: sections.prep_notes.join("\n").trim() || normalized,
     questions:
-      sections.questions.join("\n").trim() || "Generate this tab to view AI interview questions.",
+      sections.questions.join("\n").trim() || "Generate this tab to view questions and sample answers.",
     cheat_sheet:
-      sections.cheat_sheet.join("\n").trim() || "Generate this tab to view the final cheat sheet.",
+      sections.cheat_sheet.join("\n").trim() || "Generate this tab to view your last-minute cheat sheet.",
   };
+}
+
+function renderPrepSection(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => (
+      <p key={`${line}-${index}`} className="text-xs text-zinc-700">
+        {line.startsWith("-") || line.startsWith("•") ? `• ${line.replace(/^[-•]\s*/, "")}` : line}
+      </p>
+    ));
 }
 
 function isLikelyUrl(value?: string) {
@@ -154,6 +166,7 @@ export default function ApplicationDetailPage() {
   const [copiedState, setCopiedState] = useState<Record<string, string>>({});
   const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
   const [showAddRoundModal, setShowAddRoundModal] = useState(false);
+  const [editRoundModalId, setEditRoundModalId] = useState<string | null>(null);
   const [activePrepTabByRound, setActivePrepTabByRound] = useState<Record<string, "prep_notes" | "questions" | "cheat_sheet">>({});
 
   const load = useCallback(async () => {
@@ -278,6 +291,8 @@ export default function ApplicationDetailPage() {
   }, [activeRoundId, rounds]);
 
   const isSubmitted = useMemo(() => Boolean(application?.submissionSnapshot), [application]);
+  const editModalRound = rounds.find((round) => round.id === editRoundModalId) ?? null;
+  const editModalRoundState = editModalRound ? roundEdits[editModalRound.id] ?? getRoundEditableState(editModalRound) : null;
 
   async function createRound(event: FormEvent) {
     event.preventDefault();
@@ -291,6 +306,7 @@ export default function ApplicationDetailPage() {
         mode,
         location_or_link: location,
         purpose,
+        notes: "",
       }),
     });
     if (!response.ok) return setError("Failed to create round");
@@ -539,8 +555,6 @@ export default function ApplicationDetailPage() {
             const pinned = prep.find((item) => item.pinned) ?? prep[0];
             const latestDebriefArtifact =
               debriefArtifactsByRound[round.id]?.[debriefArtifactsByRound[round.id].length - 1];
-            const edit = roundEdits[round.id] ?? getRoundEditableState(round);
-            const saveState = roundSaveState[round.id];
             return (
               <article key={round.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
                 <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
@@ -566,12 +580,13 @@ export default function ApplicationDetailPage() {
                           </option>
                         ))}
                       </select>
-                      <Link
-                        href={`/applications/${id}/interview-rounds/${round.id}/cheat-sheet`}
-                        className="rounded border border-zinc-900 px-2 py-1 text-xs font-medium text-zinc-900"
+                      <button
+                        className="rounded border px-2 py-1 text-xs"
+                        type="button"
+                        onClick={() => setEditRoundModalId(round.id)}
                       >
-                        Cheat Sheet
-                      </Link>
+                        Edit round
+                      </button>
                       <button
                         className="rounded border border-red-200 px-2 py-1 text-xs text-red-700"
                         type="button"
@@ -623,98 +638,6 @@ export default function ApplicationDetailPage() {
                   </aside>
                 </div>
 
-                <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  <input
-                    type="datetime-local"
-                    className="rounded border p-2 text-sm"
-                    value={edit.scheduled_at}
-                    onChange={(e) => updateRoundEdit(round.id, "scheduled_at", e.target.value)}
-                  />
-                  <select
-                    className="rounded border p-2 text-sm"
-                    value={edit.timezone}
-                    onChange={(e) => updateRoundEdit(round.id, "timezone", e.target.value)}
-                  >
-                    {timezoneOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="rounded border p-2 text-sm"
-                    value={edit.mode}
-                    onChange={(e) => updateRoundEdit(round.id, "mode", e.target.value)}
-                  >
-                    <option value="">Select mode</option>
-                    <option value="Online">Online</option>
-                    <option value="Onsite">Onsite</option>
-                    <option value="Phone">Phone</option>
-                  </select>
-                  <select
-                    className="rounded border p-2 text-sm"
-                    value={edit.round_type}
-                    onChange={(e) => updateRoundEdit(round.id, "round_type", e.target.value)}
-                  >
-                    {roundTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    className="rounded border p-2 text-sm md:col-span-2"
-                    placeholder="Location / meeting link"
-                    value={edit.location_or_link}
-                    onChange={(e) => updateRoundEdit(round.id, "location_or_link", e.target.value)}
-                  />
-                  <textarea
-                    className="rounded border p-2 text-sm md:col-span-2"
-                    placeholder="Purpose / goals (2-3 lines)"
-                    rows={3}
-                    value={edit.purpose}
-                    onChange={(e) => updateRoundEdit(round.id, "purpose", e.target.value)}
-                  />
-                  <textarea
-                    className="rounded border p-2 text-sm md:col-span-2"
-                    placeholder="Notes"
-                    value={edit.notes}
-                    onChange={(e) => updateRoundEdit(round.id, "notes", e.target.value)}
-                  />
-                  <div className="md:col-span-2">
-                    <button
-                      className="rounded bg-black px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={() => saveRoundChanges(round.id)}
-                      disabled={saveState?.saving}
-                      type="button"
-                    >
-                      {saveState?.saving ? "Saving…" : "Save round changes"}
-                    </button>
-                    {saveState?.message && (
-                      <p className="mt-1 text-xs text-emerald-700">{saveState.message}</p>
-                    )}
-                    {saveState?.error && (
-                      <p className="mt-1 text-xs text-red-700">{saveState.error}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-3">
-                  <p className="text-sm font-medium">Link interviewers</p>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {interviewers.map((person) => (
-                      <button
-                        key={person.id}
-                        className={`rounded border px-2 py-1 text-xs ${(roundPeople[round.id] ?? []).some((r) => r.id === person.id) ? "bg-zinc-900 text-white" : ""}`}
-                        onClick={() => toggleInterviewer(round.id, person.id)}
-                        type="button"
-                      >
-                        {person.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="mt-3 rounded bg-zinc-50 p-2">
                   <div className="mb-2 flex items-center gap-2">
                     <select
@@ -749,11 +672,11 @@ export default function ApplicationDetailPage() {
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-600">
                         Prepare for the Round
                       </p>
-                      <div className="mb-2 flex flex-wrap gap-2">
+                      <div className="mb-2 grid gap-2 sm:grid-cols-3">
                         {[
-                          ["prep_notes", "Preparation Notes"],
-                          ["questions", "Interview Questions"],
-                          ["cheat_sheet", "Final Cheat Sheet"],
+                          ["prep_notes", "Things to prepare and key points"],
+                          ["questions", "Questions and sample answers from interviewer profile"],
+                          ["cheat_sheet", "Cheat sheet for last minute"],
                         ].map(([key, label]) => (
                           <button
                             key={key}
@@ -774,9 +697,13 @@ export default function ApplicationDetailPage() {
                           </button>
                         ))}
                       </div>
-                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded border bg-white p-2 text-xs">
-                        {getPrepSections(pinned.generated_text)[activePrepTabByRound[round.id] ?? "prep_notes"]}
-                      </pre>
+                      <div className="max-h-72 space-y-2 overflow-auto rounded border bg-white p-3">
+                        {renderPrepSection(
+                          getPrepSections(pinned.generated_text)[
+                            activePrepTabByRound[round.id] ?? "prep_notes"
+                          ],
+                        )}
+                      </div>
                       <div className="mt-2 flex gap-2">
                         {prep.map((item) => (
                           <button
@@ -792,7 +719,7 @@ export default function ApplicationDetailPage() {
                       </div>
                     </>
                   ) : (
-                    <p className="text-xs text-zinc-500">No prep yet. Generate to see Preparation Notes, Interview Questions, and Final Cheat Sheet tabs.</p>
+                    <p className="text-xs text-zinc-500">No prep yet. Generate to see preparation, questions, and last-minute cheat sheet tabs.</p>
                   )}
                 </div>
 
@@ -1092,6 +1019,114 @@ export default function ApplicationDetailPage() {
               />
               <button className="rounded bg-black px-3 py-2 text-white md:col-span-2">Add round</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {editModalRound && editModalRoundState && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-3xl rounded-xl bg-white p-5 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Edit interview round</h3>
+              <button
+                type="button"
+                className="rounded border px-2 py-1 text-xs"
+                onClick={() => setEditRoundModalId(null)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              <input
+                type="datetime-local"
+                className="rounded border p-2 text-sm"
+                value={editModalRoundState.scheduled_at}
+                onChange={(e) => updateRoundEdit(editModalRound.id, "scheduled_at", e.target.value)}
+              />
+              <select
+                className="rounded border p-2 text-sm"
+                value={editModalRoundState.timezone}
+                onChange={(e) => updateRoundEdit(editModalRound.id, "timezone", e.target.value)}
+              >
+                {timezoneOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="rounded border p-2 text-sm"
+                value={editModalRoundState.mode}
+                onChange={(e) => updateRoundEdit(editModalRound.id, "mode", e.target.value)}
+              >
+                <option value="">Select mode</option>
+                <option value="Online">Online</option>
+                <option value="Onsite">Onsite</option>
+                <option value="Phone">Phone</option>
+              </select>
+              <select
+                className="rounded border p-2 text-sm"
+                value={editModalRoundState.round_type}
+                onChange={(e) => updateRoundEdit(editModalRound.id, "round_type", e.target.value)}
+              >
+                {roundTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="rounded border p-2 text-sm md:col-span-2"
+                placeholder="Location / meeting link"
+                value={editModalRoundState.location_or_link}
+                onChange={(e) => updateRoundEdit(editModalRound.id, "location_or_link", e.target.value)}
+              />
+              <textarea
+                className="rounded border p-2 text-sm md:col-span-2"
+                placeholder="Purpose / goals (2-3 lines)"
+                rows={3}
+                value={editModalRoundState.purpose}
+                onChange={(e) => updateRoundEdit(editModalRound.id, "purpose", e.target.value)}
+              />
+              <textarea
+                className="rounded border p-2 text-sm md:col-span-2"
+                placeholder="Notes"
+                value={editModalRoundState.notes}
+                onChange={(e) => updateRoundEdit(editModalRound.id, "notes", e.target.value)}
+              />
+              <div className="md:col-span-2">
+                <p className="text-sm font-medium">Link interviewers</p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {interviewers.map((person) => (
+                    <button
+                      key={person.id}
+                      className={`rounded border px-2 py-1 text-xs ${(roundPeople[editModalRound.id] ?? []).some((r) => r.id === person.id) ? "bg-zinc-900 text-white" : ""}`}
+                      onClick={() => toggleInterviewer(editModalRound.id, person.id)}
+                      type="button"
+                    >
+                      {person.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <button
+                  className="rounded bg-black px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => saveRoundChanges(editModalRound.id)}
+                  disabled={roundSaveState[editModalRound.id]?.saving}
+                  type="button"
+                >
+                  {roundSaveState[editModalRound.id]?.saving ? "Saving…" : "Save round changes"}
+                </button>
+                {roundSaveState[editModalRound.id]?.message && (
+                  <p className="mt-1 text-xs text-emerald-700">{roundSaveState[editModalRound.id]?.message}</p>
+                )}
+                {roundSaveState[editModalRound.id]?.error && (
+                  <p className="mt-1 text-xs text-red-700">{roundSaveState[editModalRound.id]?.error}</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
