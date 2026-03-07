@@ -2,10 +2,6 @@ import { Application, ApplicationInput, ApplicationStatus } from "@/lib/domain/a
 import { applicationRepository } from "@/lib/repositories/applicationRepository";
 
 function assertCreateInput(input: Partial<ApplicationInput>): asserts input is ApplicationInput {
-  if (!input.candidateEmail?.trim()) {
-    throw new Error("candidateEmail is required");
-  }
-
   if (!input.company?.trim()) {
     throw new Error("company is required");
   }
@@ -16,6 +12,10 @@ function assertCreateInput(input: Partial<ApplicationInput>): asserts input is A
 
   if (!input.jobDescription?.description?.trim()) {
     throw new Error("jobDescription.description is required");
+  }
+
+  if (!input.applied_date?.trim()) {
+    throw new Error("applied_date is required");
   }
 }
 
@@ -33,7 +33,10 @@ function hasFrozenFieldChanges(input: Partial<ApplicationInput>): boolean {
       input.role !== undefined ||
       input.location !== undefined ||
       input.job_url !== undefined ||
-      input.applied_date !== undefined,
+      input.applied_date !== undefined ||
+      input.cvSubmitted !== undefined ||
+      input.coverLetterSubmitted !== undefined ||
+      input.sourcePlatform !== undefined,
   );
 }
 

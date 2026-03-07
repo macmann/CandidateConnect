@@ -12,6 +12,8 @@ function normalizePayload(payload: Record<string, unknown>): Partial<Application
       payload.candidateEmail === undefined ? undefined : String(payload.candidateEmail ?? ""),
     contactPerson:
       payload.contactPerson === undefined ? undefined : String(payload.contactPerson ?? ""),
+    sourcePlatform:
+      payload.sourcePlatform === undefined ? undefined : String(payload.sourcePlatform ?? ""),
     company: payload.company === undefined ? undefined : String(payload.company ?? ""),
     role: payload.role === undefined ? undefined : String(payload.role ?? ""),
     location: payload.location === undefined ? undefined : String(payload.location ?? ""),
@@ -24,6 +26,9 @@ function normalizePayload(payload: Record<string, unknown>): Partial<Application
     applied_date:
       payload.applied_date === undefined ? undefined : String(payload.applied_date ?? ""),
     notes: payload.notes === undefined ? undefined : String(payload.notes ?? ""),
+    cvSubmitted: payload.cvSubmitted === undefined ? undefined : Boolean(payload.cvSubmitted),
+    coverLetterSubmitted:
+      payload.coverLetterSubmitted === undefined ? undefined : Boolean(payload.coverLetterSubmitted),
     jobDescription:
       payload.jobDescription === undefined
         ? undefined
