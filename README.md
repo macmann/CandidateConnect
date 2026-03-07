@@ -48,3 +48,10 @@ The application is configured to run on the `PORT` provided by Render.
 - **Applications**: add each application with job link, company, JD, contact person, status, and optional expected salary.
 - **Customization**: from each application row, generate a customized CV and cover letter using OpenAI and attach them automatically.
 - **Dashboard filters**: view counts for today/yesterday and filter by date range + status.
+
+## Data storage
+
+- Current implementation uses file-based JSON stores under `data/*.json` via repository classes in `lib/repositories`.
+- For Neon Postgres adoption, see:
+  - migration guide: `docs/storage-neon-migration.md`
+  - starter schema: `db/neon-schema.sql`
