@@ -16,31 +16,42 @@ The platform currently uses a **file-based JSON repository pattern** under `lib/
 - Application-level selected CV version is linked by `cvDocumentVersionId` in `data/applications.json`.
 - Submission snapshots keep immutable references to selected CV/cover versions in `data/submission-snapshots.json`.
 
+## Current Neon cutover status
+
+The repository now supports **Neon-backed persistence for profile + document repositories**.
+
+- `profileRepository` reads/writes `profiles` when Neon SQL HTTP env vars are configured.
+- `documentRepository` reads/writes `document_versions` and `application_documents` when configured.
+- If Neon config is missing, both repositories automatically fall back to local JSON files.
+
+This lets you migrate CV/profile paths first without breaking existing workflows.
+
 ## Recommended Neon architecture
 
 Use Neon Postgres as the system of record for all repository-backed entities.
 
-1. Add a `DATABASE_URL` secret (Neon pooled connection string).
-2. Create normalized tables (see `db/neon-schema.sql`).
+1. Configure SQL HTTP credentials (`NEON_SQL_ENDPOINT` + `NEON_SQL_API_KEY`).
+2. Apply `db/neon-schema.sql`.
 3. Migrate JSON data into Postgres with a one-time script.
 4. Replace file-based repositories with SQL-backed repositories, one aggregate at a time:
-   - profile/documents first (CV-critical path)
+   - profile/documents first (CV-critical path) ✅
    - applications + snapshots
    - interview rounds/interviewers/answers/activity/prep
-5. Keep JSON repositories only behind a temporary fallback flag during cutover.
+5. Remove JSON fallback after full production validation.
 
 ## CV-specific migration notes
 
 - Store full CV text in `document_versions.text` as `TEXT`.
 - Keep CV version lineage with `(application_id, kind, version)` uniqueness.
-- Enforce FK from `applications.cv_document_version_id` to `document_versions.id`.
+- Map selected CV/Cover per application using `application_documents`.
 - For immutable submission packs, write rows into `submission_snapshots` that reference exact CV/cover version IDs.
 
 ## Suggested environment variables
 
 ```bash
-DATABASE_URL=postgresql://<user>:<password>@<neon-host>/<db>?sslmode=require
-DATABASE_PROVIDER=neon
+# JSON fallback stays active when these are not set
+NEON_SQL_ENDPOINT=https://<your-neon-sql-http-endpoint>
+NEON_SQL_API_KEY=<your-neon-sql-http-api-key>
 ```
 
 ## Rollout safety checklist

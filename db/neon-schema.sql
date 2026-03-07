@@ -38,22 +38,50 @@ CREATE TABLE IF NOT EXISTS applications (
 CREATE TABLE IF NOT EXISTS document_versions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   application_id UUID NULL REFERENCES applications(id) ON DELETE SET NULL,
-  kind TEXT NOT NULL CHECK (kind IN ('CV', 'COVER')),
+  kind TEXT NOT NULL CHECK (kind IN ('CV', 'Cover')),
   label TEXT NOT NULL,
-  text TEXT NOT NULL,
+  file_url TEXT NULL,
+  text TEXT NULL,
   source TEXT NOT NULL,
   version INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (application_id, kind, version)
 );
 
-ALTER TABLE applications
-  ADD CONSTRAINT applications_cv_document_fk
-  FOREIGN KEY (cv_document_version_id) REFERENCES document_versions(id) ON DELETE SET NULL;
+CREATE TABLE IF NOT EXISTS application_documents (
+  application_id UUID NOT NULL,
+  document_type TEXT NOT NULL CHECK (document_type IN ('CV', 'Cover')),
+  document_version_id UUID NOT NULL REFERENCES document_versions(id) ON DELETE CASCADE,
+  PRIMARY KEY (application_id, document_type)
+);
 
-ALTER TABLE applications
-  ADD CONSTRAINT applications_cover_document_fk
-  FOREIGN KEY (cover_document_version_id) REFERENCES document_versions(id) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'applications_cv_document_fk'
+  ) THEN
+    ALTER TABLE applications
+      ADD CONSTRAINT applications_cv_document_fk
+      FOREIGN KEY (cv_document_version_id) REFERENCES document_versions(id) ON DELETE SET NULL;
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'applications_cover_document_fk'
+  ) THEN
+    ALTER TABLE applications
+      ADD CONSTRAINT applications_cover_document_fk
+      FOREIGN KEY (cover_document_version_id) REFERENCES document_versions(id) ON DELETE SET NULL;
+  END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS submission_snapshots (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
