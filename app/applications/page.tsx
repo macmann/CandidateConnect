@@ -225,15 +225,25 @@ export default function ApplicationsPage() {
   }
 
   return (
-    <main className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-semibold">Applications</h1>
-        <Link href="/documents" className="rounded border px-3 py-2 text-sm">
+    <main className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10">
+      <section className="rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-sm md:p-10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">Applications</p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
+              Applications dashboard
+            </h1>
+          </div>
+          <Link
+            href="/documents"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
           Manage document versions
-        </Link>
-      </div>
+          </Link>
+        </div>
+      </section>
 
-      <form onSubmit={onSubmit} className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <form onSubmit={onSubmit} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-xl font-medium">{editingId ? "Edit" : "Create"} application</h2>
         <div className="grid gap-2 md:grid-cols-2">
           <input
@@ -342,9 +352,9 @@ export default function ApplicationsPage() {
         />
 
         {currentSnapshot ? (
-          <div className="rounded border border-zinc-200 bg-zinc-50 p-3">
+          <div className="rounded border border-slate-200 bg-slate-50 p-3">
             <h3 className="mb-1 font-medium">JD snapshot (read-only)</h3>
-            <p className="mb-2 text-xs text-zinc-500">
+            <p className="mb-2 text-xs text-slate-500">
               Captured at {new Date(currentSnapshot.created_at).toLocaleString()}
             </p>
             <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-sm">
@@ -360,16 +370,16 @@ export default function ApplicationsPage() {
           />
         )}
 
-        {snapshotLoading && <p className="text-sm text-zinc-500">Loading snapshot…</p>}
+        {snapshotLoading && <p className="text-sm text-slate-500">Loading snapshot…</p>}
 
         <div className="flex gap-2">
-          <button className="rounded bg-black px-4 py-2 text-white" type="submit">
+          <button className="rounded-lg bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800" type="submit">
             {editingId ? "Save changes" : "Create application"}
           </button>
           {editingId && (
             <button
               type="button"
-              className="rounded border px-4 py-2"
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-700 transition hover:bg-slate-50"
               onClick={() => {
                 setEditingId(null);
                 setCurrentSnapshot(null);
@@ -384,10 +394,10 @@ export default function ApplicationsPage() {
 
       {error && <p className="rounded border border-red-300 bg-red-50 p-3 text-red-700">{error}</p>}
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-xl font-medium">List view</h2>
-          <p className="text-sm text-zinc-500">Click headers to sort</p>
+          <p className="text-sm text-slate-500">Click headers to sort</p>
         </div>
         {loading ? (
           <p>Loading…</p>
@@ -434,11 +444,11 @@ export default function ApplicationsPage() {
                     <td className="px-2 py-2">
                       {new Date(application.updated_at).toLocaleString()}
                     </td>
-                    <td className="px-2 py-2 text-xs text-zinc-600">
+                    <td className="px-2 py-2 text-xs text-slate-600">
                       {application.role}
                       <br />
                       {application.job_url ? (
-                        <a href={application.job_url} className="text-blue-600 underline">
+                        <a href={application.job_url} className="text-sky-600 underline">
                           Job link
                         </a>
                       ) : (
@@ -449,7 +459,7 @@ export default function ApplicationsPage() {
                       <br />
                       Notes: {application.notes || "—"}
                     </td>
-                    <td className="px-2 py-2 text-xs text-zinc-600">
+                    <td className="px-2 py-2 text-xs text-slate-600">
                       CV: {application.cvDocumentVersionId ? "Linked" : "—"}
                       <br />
                       Cover: {application.coverDocumentVersionId ? "Linked" : "—"}
@@ -457,7 +467,7 @@ export default function ApplicationsPage() {
                     <td className="px-2 py-2">
                       <div className="flex gap-2">
                         <button
-                          className="rounded border px-3 py-1 disabled:opacity-50"
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                           onClick={() => startEdit(application)}
                           disabled={Boolean(application.submissionSnapshot)}
                         >
@@ -465,14 +475,14 @@ export default function ApplicationsPage() {
                         </button>
                         <Link
                           href={`/applications/${application.id}`}
-                          className="rounded border px-3 py-1"
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 transition hover:bg-slate-50"
                         >
                           Answers
                         </Link>
                         {application.submissionSnapshot && (
                           <Link
                             href={`/applications/${application.id}/pack`}
-                            className="rounded border px-3 py-1"
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 transition hover:bg-slate-50"
                           >
                             Pack
                           </Link>
@@ -487,13 +497,13 @@ export default function ApplicationsPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="mb-2 text-xl font-medium">Kanban by status</h2>
         <div className="grid gap-3 md:grid-cols-5">
           {statuses.map((status) => (
             <div
               key={status}
-              className="min-h-40 rounded border border-zinc-200 bg-zinc-50 p-3"
+              className="min-h-40 rounded border border-slate-200 bg-slate-50 p-3"
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 const appId = event.dataTransfer.getData("text/plain");
@@ -512,11 +522,11 @@ export default function ApplicationsPage() {
                     className="cursor-grab rounded border bg-white p-2 text-sm"
                   >
                     <p className="font-medium">{application.candidateName}</p>
-                    <p className="text-zinc-600">{application.role}</p>
-                    <p className="text-zinc-500">{application.company}</p>
-                    <p className="text-zinc-500">{application.applied_date || "Not applied"}</p>
+                    <p className="text-slate-600">{application.role}</p>
+                    <p className="text-slate-500">{application.company}</p>
+                    <p className="text-slate-500">{application.applied_date || "Not applied"}</p>
                     {application.notes && (
-                      <p className="line-clamp-2 text-zinc-500">{application.notes}</p>
+                      <p className="line-clamp-2 text-slate-500">{application.notes}</p>
                     )}
                   </div>
                 ))}
