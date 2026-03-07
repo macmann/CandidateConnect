@@ -20,7 +20,7 @@ async function generateWithOpenAI(messages: OpenAIMessage[]): Promise<string> {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: process.env.OPENAI_TEXT_MODEL || "gpt-5-mini",
       messages,
       temperature: 0.5,
     }),
