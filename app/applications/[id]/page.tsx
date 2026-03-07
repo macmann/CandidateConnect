@@ -133,9 +133,6 @@ export default function ApplicationDetailPage() {
   const [debriefArtifactsByRound, setDebriefArtifactsByRound] = useState<
     Record<string, DebriefArtifact[]>
   >({});
-  const [activities, setActivities] = useState<
-    Array<{ id: string; message: string; created_at: string }>
-  >([]);
   const [error, setError] = useState<string | null>(null);
 
   const [roundType, setRoundType] = useState<InterviewRoundType>("Recruiter");
@@ -146,6 +143,7 @@ export default function ApplicationDetailPage() {
   const [mode, setMode] = useState<InterviewMode>("Online");
   const [location, setLocation] = useState("");
   const [purpose, setPurpose] = useState("");
+  const [selectedInterviewerIds, setSelectedInterviewerIds] = useState<string[]>([]);
 
   const [personName, setPersonName] = useState("");
   const [personTitle, setPersonTitle] = useState("");
@@ -169,12 +167,24 @@ export default function ApplicationDetailPage() {
   const [editRoundModalId, setEditRoundModalId] = useState<string | null>(null);
   const [activePrepTabByRound, setActivePrepTabByRound] = useState<Record<string, "prep_notes" | "questions" | "cheat_sheet">>({});
 
+  function resetAddRoundModal() {
+    setShowAddRoundModal(false);
+    setDatetime("");
+    setLocation("");
+    setPurpose("");
+    setSelectedInterviewerIds([]);
+    setPersonName("");
+    setPersonTitle("");
+    setPersonDepartment("");
+    setPersonLinkedinUrl("");
+    setPersonNotes("");
+  }
+
   const load = useCallback(async () => {
-    const [applicationRes, roundsRes, interviewerRes, activityRes] = await Promise.all([
+    const [applicationRes, roundsRes, interviewerRes] = await Promise.all([
       fetch(`/api/applications/${id}`, { cache: "no-store" }),
       fetch(`/api/applications/${id}/interview-rounds`, { cache: "no-store" }),
       fetch(`/api/applications/${id}/interviewers`, { cache: "no-store" }),
-      fetch(`/api/applications/${id}/activity`, { cache: "no-store" }),
     ]);
 
     const appData = await applicationRes.json();
@@ -186,7 +196,6 @@ export default function ApplicationDetailPage() {
     setApplication(appData.application);
     const roundsData = await roundsRes.json();
     const interviewersData = await interviewerRes.json();
-    const activityData = await activityRes.json();
     const loadedRounds: InterviewRound[] = roundsData.rounds ?? [];
     setRounds(loadedRounds);
     setRoundEdits((current) => {
@@ -199,7 +208,6 @@ export default function ApplicationDetailPage() {
       return next;
     });
     setInterviewers(interviewersData.interviewers ?? []);
-    setActivities(activityData.activities ?? []);
 
     const people: Record<string, Interviewer[]> = {};
     const preps: Record<string, PrepArtifact[]> = {};
@@ -310,10 +318,25 @@ export default function ApplicationDetailPage() {
       }),
     });
     if (!response.ok) return setError("Failed to create round");
-    setDatetime("");
-    setLocation("");
-    setPurpose("");
-    setShowAddRoundModal(false);
+
+    const roundData = await response.json();
+    const newRoundId = (roundData.round as InterviewRound | undefined)?.id;
+    if (newRoundId && selectedInterviewerIds.length > 0) {
+      const assignResponse = await fetch(
+        `/api/applications/${id}/interview-rounds/${newRoundId}/interviewers`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ interviewer_ids: selectedInterviewerIds }),
+        },
+      );
+
+      if (!assignResponse.ok) {
+        return setError("Round created, but assigning interviewers failed. Please retry.");
+      }
+    }
+
+    resetAddRoundModal();
     await load();
   }
 
@@ -326,8 +349,7 @@ export default function ApplicationDetailPage() {
     await load();
   }
 
-  async function createInterviewer(event: FormEvent) {
-    event.preventDefault();
+  async function createInterviewerForRound() {
     const response = await fetch(`/api/applications/${id}/interviewers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -339,13 +361,32 @@ export default function ApplicationDetailPage() {
         notes: personNotes,
       }),
     });
-    if (!response.ok) return;
+    if (!response.ok) {
+      setError("Failed to create interviewer");
+      return;
+    }
+
+    const data = await response.json();
+    const interviewer = data.interviewer as Interviewer;
+    if (interviewer?.id) {
+      setSelectedInterviewerIds((current) =>
+        current.includes(interviewer.id) ? current : [...current, interviewer.id],
+      );
+    }
     setPersonName("");
     setPersonTitle("");
     setPersonDepartment("");
     setPersonLinkedinUrl("");
     setPersonNotes("");
     await load();
+  }
+
+  function toggleRoundInterviewer(interviewerId: string) {
+    setSelectedInterviewerIds((current) =>
+      current.includes(interviewerId)
+        ? current.filter((id) => id !== interviewerId)
+        : [...current, interviewerId],
+    );
   }
 
   async function toggleInterviewer(roundId: string, interviewerId: string) {
@@ -961,7 +1002,7 @@ export default function ApplicationDetailPage() {
               <button
                 type="button"
                 className="rounded border px-2 py-1 text-xs"
-                onClick={() => setShowAddRoundModal(false)}
+                onClick={resetAddRoundModal}
               >
                 Close
               </button>
@@ -1017,6 +1058,70 @@ export default function ApplicationDetailPage() {
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
               />
+              <div className="rounded border p-3 md:col-span-2">
+                <p className="text-sm font-medium">Interviewers for this round</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {interviewers.map((person) => (
+                    <button
+                      key={person.id}
+                      type="button"
+                      className={`rounded border px-2 py-1 text-xs ${selectedInterviewerIds.includes(person.id) ? "bg-zinc-900 text-white" : ""}`}
+                      onClick={() => toggleRoundInterviewer(person.id)}
+                    >
+                      {person.name}
+                    </button>
+                  ))}
+                </div>
+                {interviewers.length === 0 && (
+                  <p className="mt-2 text-xs text-zinc-500">
+                    No interviewers yet. Add one below and it will be pre-selected.
+                  </p>
+                )}
+              </div>
+              <div className="rounded border p-3 md:col-span-2">
+                <p className="text-sm font-medium">Add interviewer</p>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <input
+                    className="rounded border p-2 text-sm"
+                    placeholder="Name (or Unknown interviewer)"
+                    value={personName}
+                    onChange={(e) => setPersonName(e.target.value)}
+                  />
+                  <input
+                    className="rounded border p-2 text-sm"
+                    placeholder="Title / role"
+                    value={personTitle}
+                    onChange={(e) => setPersonTitle(e.target.value)}
+                  />
+                  <input
+                    className="rounded border p-2 text-sm"
+                    placeholder="Department (optional)"
+                    value={personDepartment}
+                    onChange={(e) => setPersonDepartment(e.target.value)}
+                  />
+                  <input
+                    className="rounded border p-2 text-sm"
+                    placeholder="LinkedIn URL"
+                    value={personLinkedinUrl}
+                    onChange={(e) => setPersonLinkedinUrl(e.target.value)}
+                  />
+                  <textarea
+                    className="rounded border p-2 text-sm md:col-span-2"
+                    placeholder="Notes / vibe / what to ask"
+                    value={personNotes}
+                    onChange={(e) => setPersonNotes(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="rounded border px-3 py-2 text-sm md:col-span-2"
+                    onClick={() => {
+                      void createInterviewerForRound();
+                    }}
+                  >
+                    Add interviewer to this round
+                  </button>
+                </div>
+              </div>
               <button className="rounded bg-black px-3 py-2 text-white md:col-span-2">Add round</button>
             </form>
           </div>
@@ -1130,57 +1235,6 @@ export default function ApplicationDetailPage() {
           </div>
         </div>
       )}
-
-      <section className="rounded border p-4">
-        <h2 className="mb-2 font-semibold">Interviewer profiles</h2>
-        <form onSubmit={createInterviewer} className="grid gap-2 md:grid-cols-3">
-          <input
-            className="rounded border p-2"
-            placeholder="Name (or Unknown interviewer)"
-            value={personName}
-            onChange={(e) => setPersonName(e.target.value)}
-          />
-          <input
-            className="rounded border p-2"
-            placeholder="Title / role"
-            value={personTitle}
-            onChange={(e) => setPersonTitle(e.target.value)}
-          />
-          <input
-            className="rounded border p-2"
-            placeholder="Department (optional)"
-            value={personDepartment}
-            onChange={(e) => setPersonDepartment(e.target.value)}
-          />
-          <input
-            className="rounded border p-2"
-            placeholder="LinkedIn URL"
-            value={personLinkedinUrl}
-            onChange={(e) => setPersonLinkedinUrl(e.target.value)}
-          />
-          <input
-            className="rounded border p-2"
-            placeholder="Notes / vibe / what to ask"
-            value={personNotes}
-            onChange={(e) => setPersonNotes(e.target.value)}
-          />
-          <button className="rounded bg-black px-3 py-2 text-white md:col-span-3">
-            Add interviewer
-          </button>
-        </form>
-      </section>
-
-      <section className="rounded border p-4">
-        <h2 className="font-semibold">Activity</h2>
-        <ul className="mt-2 space-y-1 text-sm">
-          {activities.map((item) => (
-            <li key={item.id}>
-              • {item.message}{" "}
-              <span className="text-zinc-500">({new Date(item.created_at).toLocaleString()})</span>
-            </li>
-          ))}
-        </ul>
-      </section>
 
       {isSubmitted && (
         <p className="text-xs text-zinc-500">
